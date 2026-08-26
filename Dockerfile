@@ -28,8 +28,9 @@ COPY --from=build /usr/local/share/xray /usr/local/share/xray
 
 COPY . /code
 
-RUN ln -s /code/marzban-cli.py /usr/bin/marzban-cli \
-    && chmod +x /usr/bin/marzban-cli \
-    && marzban-cli completion install --shell bash
+RUN ln -s /code/skypanel-cli.py /usr/bin/skypanel-cli \
+    && chmod +x /usr/bin/skypanel-cli \
+    && ln -s /usr/bin/skypanel-cli /usr/bin/marzban-cli \
+    && skypanel-cli completion install --shell bash
 
 CMD ["bash", "-c", "alembic upgrade head; python main.py"]

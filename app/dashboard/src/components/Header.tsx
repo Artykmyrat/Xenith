@@ -215,7 +215,7 @@ export const Header: FC<HeaderProps> = ({ actions }) => {
               data-color-scheme={`no-preference: ${gBtnColor}; light: ${gBtnColor}; dark: ${gBtnColor};`}
               data-size="large"
               data-show-count="true"
-              aria-label="Star Marzban on GitHub"
+              aria-label="Star SkyPanel on GitHub"
             >
               Star
             </GitHubButton>
