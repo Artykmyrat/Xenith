@@ -31,7 +31,6 @@ import GitHubButton from "react-github-btn";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 import { updateThemeColor } from "utils/themeColor";
-import { Language } from "./Language";
 import useGetUser from "hooks/useGetUser";
 
 type HeaderProps = {
@@ -185,7 +184,6 @@ export const Header: FC<HeaderProps> = ({ actions }) => {
             </IconButton>
           )}
 
-          <Language />
 
           <IconButton
             size="sm"

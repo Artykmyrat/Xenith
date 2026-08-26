@@ -23,7 +23,6 @@ import { fetch } from "service/http";
 import { removeAuthToken, setAuthToken } from "utils/authStorage";
 import { ReactComponent as Logo } from "assets/logo.svg";
 import { useTranslation } from "react-i18next";
-import { Language } from "components/Language";
 
 const schema = z.object({
   username: z.string().min(1, "login.fieldRequired"),
@@ -85,9 +84,6 @@ export const Login: FC = () => {
   return (
     <VStack justifyContent="space-between" minH="100vh" p="6" w="full">
       <Box w="full">
-        <HStack justifyContent="end" w="full">
-          <Language />
-        </HStack>
         <HStack w="full" justifyContent="center" alignItems="center">
           <Box w="full" maxW="340px" mt="6">
             <VStack alignItems="center" w="full">
