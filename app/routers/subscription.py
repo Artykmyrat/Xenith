@@ -1,5 +1,4 @@
 import re
-from distutils.version import LooseVersion
 
 from fastapi import APIRouter, Depends, Header, Path, Request, Response
 from fastapi.responses import HTMLResponse
@@ -9,6 +8,7 @@ from app.dependencies import get_validated_sub, validate_dates
 from app.models.user import SubscriptionUserResponse, UserResponse
 from app.subscription.share import encode_title, generate_subscription
 from app.templates import render_template
+from app.utils.helpers import parse_version
 from config import (
     SUB_PROFILE_TITLE,
     SUB_SUPPORT_URL,
@@ -97,7 +97,7 @@ def user_subscription(
 
     elif (USE_CUSTOM_JSON_DEFAULT or USE_CUSTOM_JSON_FOR_V2RAYN) and re.match(r'^v2rayN/(\d+\.\d+)', user_agent):
         version_str = re.match(r'^v2rayN/(\d+\.\d+)', user_agent).group(1)
-        if LooseVersion(version_str) >= LooseVersion("6.40"):
+        if parse_version(version_str) >= parse_version("6.40"):
             conf = generate_subscription(user=user, config_format="v2ray-json", as_base64=False, reverse=False)
             return Response(content=conf, media_type="application/json", headers=response_headers)
         else:
@@ -106,10 +106,10 @@ def user_subscription(
 
     elif (USE_CUSTOM_JSON_DEFAULT or USE_CUSTOM_JSON_FOR_V2RAYNG) and re.match(r'^v2rayNG/(\d+\.\d+\.\d+)', user_agent):
         version_str = re.match(r'^v2rayNG/(\d+\.\d+\.\d+)', user_agent).group(1)
-        if LooseVersion(version_str) >= LooseVersion("1.8.29"):
+        if parse_version(version_str) >= parse_version("1.8.29"):
             conf = generate_subscription(user=user, config_format="v2ray-json", as_base64=False, reverse=False)
             return Response(content=conf, media_type="application/json", headers=response_headers)
-        elif LooseVersion(version_str) >= LooseVersion("1.8.18"):
+        elif parse_version(version_str) >= parse_version("1.8.18"):
             conf = generate_subscription(user=user, config_format="v2ray-json", as_base64=False, reverse=True)
             return Response(content=conf, media_type="application/json", headers=response_headers)
         else:
@@ -126,7 +126,7 @@ def user_subscription(
 
     elif (USE_CUSTOM_JSON_DEFAULT or USE_CUSTOM_JSON_FOR_HAPP) and re.match(r'^Happ/(\d+\.\d+\.\d+)', user_agent):
         version_str = re.match(r'^Happ/(\d+\.\d+\.\d+)', user_agent).group(1)
-        if LooseVersion(version_str) >= LooseVersion("1.11.0"):
+        if parse_version(version_str) >= parse_version("1.11.0"):
             conf = generate_subscription(user=user, config_format="v2ray-json", as_base64=False, reverse=False)
             return Response(content=conf, media_type="application/json", headers=response_headers)
         else:
