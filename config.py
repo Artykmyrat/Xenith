@@ -50,6 +50,11 @@ TELEGRAM_DEFAULT_VLESS_FLOW = config("TELEGRAM_DEFAULT_VLESS_FLOW", default="")
 
 JWT_ACCESS_TOKEN_EXPIRE_MINUTES = config("JWT_ACCESS_TOKEN_EXPIRE_MINUTES", cast=int, default=1440)
 
+# Subscription tokens issued before the switch to HMAC signatures are still
+# accepted by default so existing links keep working. Set to False once your
+# users have picked up freshly issued subscription URLs.
+ACCEPT_LEGACY_SUBSCRIPTION_TOKENS = config("ACCEPT_LEGACY_SUBSCRIPTION_TOKENS", default=True, cast=bool)
+
 CUSTOM_TEMPLATES_DIRECTORY = config("CUSTOM_TEMPLATES_DIRECTORY", default=None)
 SUBSCRIPTION_PAGE_TEMPLATE = config("SUBSCRIPTION_PAGE_TEMPLATE", default="subscription/index.html")
 HOME_PAGE_TEMPLATE = config("HOME_PAGE_TEMPLATE", default="home/index.html")
