@@ -46,6 +46,15 @@ installations can migrate — do not rename tables or reorder existing revisions
 autopep8 <file> --max-line-length 120
 ```
 
+### Tests
+
+```bash
+pip install -r requirements-dev.txt
+pytest
+```
+
+Coverage is thin so far — new tests alongside your change are welcome.
+
 ## Frontend
 
 Chakra UI is the component library; follow its conventions. Prefer cohesive,
