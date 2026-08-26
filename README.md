@@ -88,6 +88,18 @@ Multi-server setups use [Marzban-Node](https://github.com/Gozargah/Marzban-node)
 on the remote machines. SkyPanel speaks the same protocol, so upstream nodes work
 unchanged.
 
+Nodes serve a self-signed certificate, which SkyPanel pins on the first
+successful connection and requires on every connection after that — an
+intercepted link is refused rather than silently trusted. If a node is
+reinstalled it generates a new certificate, and the panel will refuse it until
+the pin is cleared:
+
+```
+POST /api/node/{node_id}/reset-certificate
+```
+
+Only clear a pin when you expect the certificate to have changed.
+
 ## Documentation
 
 SkyPanel's own documentation is still being written. Until then, the upstream

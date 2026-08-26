@@ -184,6 +184,27 @@ def reconnect_node(
     return {"detail": "Reconnection task scheduled"}
 
 
+@router.post("/node/{node_id}/reset-certificate")
+def reset_node_certificate(
+    bg: BackgroundTasks,
+    dbnode: NodeResponse = Depends(get_node),
+    db: Session = Depends(get_db),
+    _: Admin = Depends(Admin.check_sudo_admin),
+):
+    """Forget the certificate pinned for a node and reconnect.
+
+    Needed after a node is reinstalled and generates a fresh certificate; the
+    next connection pins whatever the node then presents, so only do this when
+    the change is expected.
+    """
+    crud.set_node_server_cert(db, dbnode, None)
+    xray.operations.remove_node(dbnode.id)
+
+    logger.info(f'Pinned certificate of node "{dbnode.name}" reset')
+    bg.add_task(xray.operations.connect_node, node_id=dbnode.id)
+    return {"detail": "Certificate reset, reconnection task scheduled"}
+
+
 @router.delete("/node/{node_id}")
 def remove_node(
     dbnode: NodeResponse = Depends(get_node),

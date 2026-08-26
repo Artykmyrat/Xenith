@@ -1395,6 +1395,25 @@ def update_node_status(db: Session, dbnode: Node, status: NodeStatus, message: s
     return dbnode
 
 
+def set_node_server_cert(db: Session, dbnode: Node, server_cert: Optional[str]) -> Node:
+    """
+    Pins the certificate a node is expected to present, or clears the pin.
+
+    Args:
+        db (Session): The database session.
+        dbnode (Node): The Node object to be updated.
+        server_cert (Optional[str]): PEM of the node's certificate, or None to
+            drop the pin so that the next connection establishes a new one.
+
+    Returns:
+        Node: The updated Node object.
+    """
+    dbnode.server_cert = server_cert
+    db.commit()
+    db.refresh(dbnode)
+    return dbnode
+
+
 def create_notification_reminder(
         db: Session, reminder_type: ReminderType, expires_at: datetime, user_id: int, threshold: Optional[int] = None) -> NotificationReminder:
     """

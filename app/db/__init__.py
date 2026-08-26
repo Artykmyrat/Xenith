@@ -31,7 +31,7 @@ from .crud import (create_admin, create_notification_reminder,  # noqa
                    get_users_count, remove_admin, remove_user, revoke_user_sub,
                    set_owner, update_admin, update_user, update_user_status, reset_user_by_next,
                    update_user_sub, start_user_expire, get_admin_by_id,
-                   get_admin_by_telegram_id)
+                   get_admin_by_telegram_id, set_node_server_cert)
 
 from .models import JWT, System, User  # noqa
 
@@ -51,6 +51,7 @@ __all__ = [
     "revoke_user_sub",
     "set_owner",
     "get_system_usage",
+    "set_node_server_cert",
     "get_jwt_secret_key",
     "get_tls_certificate",
     "get_admin",

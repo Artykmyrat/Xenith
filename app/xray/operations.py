@@ -187,7 +187,8 @@ def add_node(dbnode: "DBNode"):
                                      api_port=dbnode.api_port,
                                      ssl_key=tls['key'],
                                      ssl_cert=tls['certificate'],
-                                     usage_coefficient=dbnode.usage_coefficient)
+                                     usage_coefficient=dbnode.usage_coefficient,
+                                     server_cert=dbnode.server_cert)
 
     return xray.nodes[dbnode.id]
 
@@ -213,6 +214,26 @@ _connecting_nodes = {}
 
 
 @threaded_function
+def _store_node_certificate(node_id: int, node) -> None:
+    """Persist the certificate a node presented, the first time we see it.
+
+    Nodes generate their own self-signed certificate, so it cannot be known in
+    advance. Once stored, app.xray.node refuses any other certificate.
+    """
+    server_cert = getattr(node, "server_cert", None)
+    if not server_cert:
+        return
+
+    try:
+        with GetDB() as db:
+            dbnode = crud.get_node_by_id(db, node_id)
+            if dbnode and dbnode.server_cert != server_cert:
+                crud.set_node_server_cert(db, dbnode, server_cert)
+                logger.info(f"Pinned the certificate of \"{dbnode.name}\" node")
+    except SQLAlchemyError:
+        logger.warning(f"Failed to store the certificate of node {node_id}")
+
+
 def connect_node(node_id, config=None):
     global _connecting_nodes
 
@@ -241,6 +262,7 @@ def connect_node(node_id, config=None):
             config = xray.config.include_db_users()
 
         node.start(config)
+        _store_node_certificate(node_id, node)
         version = node.get_version()
         _change_node_status(node_id, NodeStatus.connected, version=version)
         logger.info(f"Connected to \"{dbnode.name}\" node, xray run on v{version}")

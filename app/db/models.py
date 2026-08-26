@@ -310,6 +310,10 @@ class Node(Base):
     usages = relationship("NodeUsage", back_populates="node", cascade="all, delete-orphan")
     usage_coefficient = Column(Float, nullable=False, server_default=text("1.0"), default=1)
 
+    # PEM of the certificate this node presented on the first successful
+    # connection. Later connections must present the very same certificate.
+    server_cert = Column(String(4096), nullable=True, default=None)
+
 
 class NodeUserUsage(Base):
     __tablename__ = "node_user_usages"
