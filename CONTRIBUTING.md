@@ -53,7 +53,18 @@ pip install -r requirements-dev.txt
 pytest
 ```
 
-Coverage is thin so far — new tests alongside your change are welcome.
+`tests/conftest.py` pins the environment before `config.py` is imported, so the
+suite behaves the same with or without a local `.env`. It hands out an
+in-memory database, a fixed Xray config with one inbound per protocol, a set of
+hosts you can override, and an API client that talks to the real router — see
+the `db`, `xray_config`, `hosts` and `client` fixtures. Calls into the Xray core
+are stubbed and recorded in `no_xray_calls`, so nothing needs the binary.
+
+Tests that describe a known bug are marked `xfail(strict=True)`: they turn into
+a failure the moment the bug is fixed, which is the reminder to delete the mark.
+
+New tests alongside your change are welcome; the API and the database layer are
+the parts most worth adding to.
 
 CI runs the same suite on every push and pull request, and the Docker image is
 only built and published once it passes. See [docs/CI.md](./docs/CI.md) for the

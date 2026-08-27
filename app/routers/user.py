@@ -52,7 +52,7 @@ def add_user(
         if not xray.config.inbounds_by_protocol.get(proxy_type):
             raise HTTPException(
                 status_code=400,
-                detail=f"Protocol {proxy_type} is disabled on your server",
+                detail=f"Protocol {proxy_type.value} is disabled on your server",
             )
 
     try:
@@ -106,7 +106,7 @@ def modify_user(
         if not xray.config.inbounds_by_protocol.get(proxy_type):
             raise HTTPException(
                 status_code=400,
-                detail=f"Protocol {proxy_type} is disabled on your server",
+                detail=f"Protocol {proxy_type.value} is disabled on your server",
             )
 
     old_status = dbuser.status
