@@ -56,14 +56,16 @@ pytest
 Coverage is thin so far — new tests alongside your change are welcome.
 
 CI runs the same suite on every push and pull request, and the Docker image is
-only built and published once it passes.
+only built and published once it passes. See [docs/CI.md](./docs/CI.md) for the
+pipeline, the image tags and how deployment is wired up.
 
 ## Frontend
 
 Chakra UI is the component library; follow its conventions. Prefer cohesive,
 single-purpose components, and favour readability over brevity.
 
-The frontend is pre-built and served from `app/dashboard/build`. To rebuild,
+The frontend is built inside the Docker image, so `app/dashboard/build` is not
+tracked in git — there is nothing to rebuild before committing. For local work,
 run `npm install` in `app/dashboard`, delete the `build` directory and start the
 backend again.
 

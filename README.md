@@ -74,8 +74,11 @@ It also installs a `xenith` command on the host:
 xenith logs -f                 # panel logs
 xenith restart                 # restart after editing .env
 xenith cli admin create --sudo # add an admin
-xenith update                  # rebuild from the latest sources
+xenith update                  # pull or rebuild the image and restart
 ```
+
+Pushing to `main` builds the image and can deploy it to the server on its own —
+see [docs/CI.md](./docs/CI.md).
 
 See [docs/INSTALL.md](./docs/INSTALL.md) for the manual steps, running behind a
 reverse proxy, upgrades and backups.

@@ -32,3 +32,29 @@ jobs:
 
       - name: Run tests
         run: pytest -q
+
+  dashboard:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Enable corepack
+        run: npm i -g corepack && corepack enable
+
+      - name: Setup nodejs
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          cache: "pnpm"
+          cache-dependency-path: "app/dashboard/pnpm-lock.yaml"
+          package-manager-cache: false
+
+      - name: Install dependencies
+        working-directory: ./app/dashboard
+        run: pnpm install --frozen-lockfile
+
+      # The bundle is no longer committed, so type errors have to be caught here.
+      - name: Typecheck and build
+        working-directory: ./app/dashboard
+        run: VITE_BASE_API=/api/ pnpm run build --outDir build --assetsDir statics

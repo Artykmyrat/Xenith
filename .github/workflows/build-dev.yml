@@ -5,6 +5,10 @@ on:
     branches:
       - "dev"
 
+concurrency:
+  group: build-dev
+  cancel-in-progress: true
+
 jobs:
   test:
     uses: ./.github/workflows/test.yml
@@ -12,33 +16,12 @@ jobs:
   build-dev:
     needs: test
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
     steps:
       - name: Checkout
         uses: actions/checkout@v6
-
-      - name: Enable corepack
-        run: npm i -g corepack && corepack enable
-
-      - name: Setup nodejs
-        uses: actions/setup-node@v6
-        with:
-          node-version: "24"
-          cache: "pnpm"
-          cache-dependency-path: "app/dashboard/pnpm-lock.yaml"
-          registry-url: "https://registry.npmjs.org"
-          package-manager-cache: false
-
-      - name: Install dependencies
-        working-directory: ./app/dashboard
-        run: pnpm i
-
-      - name: Build project
-        working-directory: ./app/dashboard
-        run: VITE_BASE_API=/api/ pnpm run build --outDir build --assetsDir statics
-
-      - name: Create 404.html
-        working-directory: ./app/dashboard
-        run: cp ./build/index.html ./build/404.html
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -66,5 +49,7 @@ jobs:
           platforms: linux/amd64,linux/arm64
           push: true
           tags: |
-            artykmyrat/xenith:${{github.ref_name}}
-            ghcr.io/artykmyrat/xenith:${{github.ref_name}}
+            artykmyrat/xenith:dev
+            ghcr.io/artykmyrat/xenith:dev
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

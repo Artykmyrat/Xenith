@@ -2,7 +2,7 @@
 #
 # Host-side wrapper around the Xenith container.
 #
-#   xenith up | down | restart | status | logs | update
+#   xenith up | down | restart | status | logs | update | image <ref>
 #   xenith cli admin create --sudo
 #   xenith certbot certificates
 #   xenith shell
@@ -30,7 +30,8 @@ Xenith
   xenith restart          Restart it (do this after changing .env)
   xenith status           Container state
   xenith logs [-f]        Panel logs
-  xenith update           Rebuild from the latest sources and restart
+  xenith update           Pull or rebuild the image and restart
+  xenith image <ref>      Switch to a published image, pull it and restart
   xenith cli <args>       Run xenith-cli inside the container
   xenith certbot <args>   Run certbot inside the container
   xenith shell            Shell inside the container
@@ -52,14 +53,28 @@ case "$command" in
   shell)   compose exec "$SERVICE" bash ;;
   env)     "${EDITOR:-nano}" "$INSTALL_DIR/.env" ;;
   update)
-    if [[ -d "$INSTALL_DIR/src/.git" ]]; then
+    image="$(awk '/image:/ {print $2; exit}' "$COMPOSE_FILE")"
+    if [[ "$image" == xenith:local && -d "$INSTALL_DIR/src/.git" ]]; then
       git -C "$INSTALL_DIR/src" fetch --depth 1 origin main
       git -C "$INSTALL_DIR/src" checkout -q FETCH_HEAD
-      docker build -t "$(awk '/image:/ {print $2; exit}' "$COMPOSE_FILE")" "$INSTALL_DIR/src"
+      docker build -t "$image" "$INSTALL_DIR/src"
     else
       compose pull
     fi
     compose up -d
+    docker image prune -f >/dev/null 2>&1 || true
+    ;;
+  image)
+    [[ $# -ge 1 ]] || die "Usage: xenith image ghcr.io/artykmyrat/xenith:latest"
+    new_image="$1"
+    # Rewrite the image line in place, keeping a copy of the previous file.
+    cp "$COMPOSE_FILE" "$COMPOSE_FILE.bak"
+    sed -i.tmp -E "s|^([[:space:]]*image:[[:space:]]*).*$|\\1$new_image|" "$COMPOSE_FILE"
+    rm -f "$COMPOSE_FILE.tmp"
+    compose pull
+    compose up -d
+    docker image prune -f >/dev/null 2>&1 || true
+    printf 'now running %s\n' "$new_image"
     ;;
   ""|help|-h|--help) usage ;;
   *) die "Unknown command: $command (try: xenith help)" ;;

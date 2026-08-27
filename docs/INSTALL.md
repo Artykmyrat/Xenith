@@ -182,6 +182,7 @@ xenith status                  # container state
 xenith logs -f                 # follow the panel log
 xenith update                  # pull the latest sources, rebuild, restart
 xenith cli admin create --sudo # another sudo admin
+xenith image <ref>             # switch to a published image, e.g. ghcr.io/artykmyrat/xenith:latest
 xenith certbot certificates    # certbot, inside the container
 xenith env                     # edit .env
 xenith shell                   # shell inside the container
@@ -233,3 +234,14 @@ rm -rf /opt/xenith
 # data and certificates, delete only if you mean it:
 # rm -rf /var/lib/marzban /etc/letsencrypt
 ```
+
+## Automatic updates
+
+Point the host at the published image once:
+
+```bash
+xenith image ghcr.io/artykmyrat/xenith:latest
+```
+
+From then on every push to `main` in the repository rebuilds that image and
+deploys it here, provided the SSH secrets are set — see [CI.md](./CI.md).

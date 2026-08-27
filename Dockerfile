@@ -1,4 +1,19 @@
 ARG PYTHON_VERSION=3.12
+ARG NODE_VERSION=24
+
+FROM node:$NODE_VERSION-slim AS dashboard
+
+WORKDIR /dashboard
+
+RUN corepack enable
+
+# Dependencies first: they only change when the lockfile does.
+COPY app/dashboard/package.json app/dashboard/pnpm-lock.yaml ./
+RUN pnpm install --frozen-lockfile
+
+COPY app/dashboard/ ./
+RUN VITE_BASE_API=/api/ pnpm run build --outDir build --assetsDir statics \
+    && cp build/index.html build/404.html
 
 FROM python:$PYTHON_VERSION-slim AS build
 
@@ -36,6 +51,7 @@ COPY --from=build /opt/certbot /opt/certbot
 RUN ln -s /opt/certbot/bin/certbot /usr/local/bin/certbot
 
 COPY . /code
+COPY --from=dashboard /dashboard/build /code/app/dashboard/build
 
 # skypanel-cli and marzban-cli stay as aliases so existing scripts keep working.
 RUN ln -s /code/xenith-cli.py /usr/bin/xenith-cli \

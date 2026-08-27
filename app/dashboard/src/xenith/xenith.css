@@ -192,6 +192,7 @@ textarea.xn-input { min-height: 90px; resize: vertical; }
   width: min(440px, 100%);
   max-height: calc(100vh - 48px);
   overflow: auto;
+  scrollbar-width: thin;
   display: flex;
   flex-direction: column;
   gap: 10.2px;
