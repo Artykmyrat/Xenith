@@ -3,6 +3,7 @@
 # Host-side wrapper around the Xenith container.
 #
 #   xenith up | down | restart | status | logs | update | image <ref>
+#   xenith self-update
 #   xenith cli admin create --sudo
 #   xenith certbot certificates
 #   xenith shell
@@ -12,6 +13,7 @@
 set -euo pipefail
 
 INSTALL_DIR="${XENITH_DIR:-/opt/xenith}"
+WRAPPER_URL="https://raw.githubusercontent.com/Artykmyrat/Xenith/main/scripts/xenith"
 COMPOSE_FILE="$INSTALL_DIR/docker-compose.yml"
 SERVICE=xenith
 
@@ -36,6 +38,7 @@ Xenith
   xenith certbot <args>   Run certbot inside the container
   xenith shell            Shell inside the container
   xenith env              Open $INSTALL_DIR/.env in \$EDITOR
+  xenith self-update      Replace this script with the current one
 USAGE
 }
 
@@ -75,6 +78,16 @@ case "$command" in
     compose up -d
     docker image prune -f >/dev/null 2>&1 || true
     printf 'now running %s\n' "$new_image"
+    ;;
+  self-update)
+    target="$(command -v xenith || echo /usr/local/bin/xenith)"
+    tmp="$(mktemp)"
+    curl -fsSL "$WRAPPER_URL" -o "$tmp"
+    # Only replace the script once the download looks like the real thing.
+    grep -q "^INSTALL_DIR=" "$tmp" || die "Downloaded file does not look like the xenith script."
+    install -m 755 "$tmp" "$target"
+    rm -f "$tmp"
+    printf 'updated %s\n' "$target"
     ;;
   ""|help|-h|--help) usage ;;
   *) die "Unknown command: $command (try: xenith help)" ;;

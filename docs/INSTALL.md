@@ -183,6 +183,7 @@ xenith logs -f                 # follow the panel log
 xenith update                  # pull the latest sources, rebuild, restart
 xenith cli admin create --sudo # another sudo admin
 xenith image <ref>             # switch to a published image, e.g. ghcr.io/artykmyrat/xenith:latest
+xenith self-update             # update this wrapper script itself
 xenith certbot certificates    # certbot, inside the container
 xenith env                     # edit .env
 xenith shell                   # shell inside the container
