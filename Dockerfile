@@ -15,6 +15,12 @@ COPY ./requirements.txt /code/
 RUN python3 -m pip install --upgrade pip setuptools \
     && pip install --no-cache-dir --upgrade -r /code/requirements.txt
 
+# certbot lives in its own virtualenv: it wants newer acme/josepy/pyOpenSSL
+# than the panel pins, and pip cannot satisfy both in one environment.
+RUN python3 -m venv /opt/certbot \
+    && /opt/certbot/bin/pip install --no-cache-dir --upgrade pip \
+    && /opt/certbot/bin/pip install --no-cache-dir certbot==5.7.0
+
 FROM python:$PYTHON_VERSION-slim
 
 ENV PYTHON_LIB_PATH=/usr/local/lib/python${PYTHON_VERSION%.*}/site-packages
@@ -25,6 +31,9 @@ RUN rm -rf $PYTHON_LIB_PATH/*
 COPY --from=build $PYTHON_LIB_PATH $PYTHON_LIB_PATH
 COPY --from=build /usr/local/bin /usr/local/bin
 COPY --from=build /usr/local/share/xray /usr/local/share/xray
+COPY --from=build /opt/certbot /opt/certbot
+
+RUN ln -s /opt/certbot/bin/certbot /usr/local/bin/certbot
 
 COPY . /code
 

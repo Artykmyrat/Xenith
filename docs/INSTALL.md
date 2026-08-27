@@ -70,8 +70,8 @@ docker build -t xenith:local /opt/xenith/src
 
 **4. Certificate** (skip if a reverse proxy terminates TLS — see below)
 
-certbot ships inside the image, so nothing extra is installed on the host.
-Port 80 has to be free while this runs:
+certbot ships inside the image in its own virtualenv (`/opt/certbot`), so
+nothing extra is installed on the host. Port 80 has to be free while this runs:
 
 ```bash
 docker run --rm -p 80:80 -v /etc/letsencrypt:/etc/letsencrypt \
