@@ -21,7 +21,6 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    environment: production
     steps:
       - name: Check the host is configured
         id: guard

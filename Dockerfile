@@ -1,7 +1,7 @@
 ARG PYTHON_VERSION=3.12
 ARG NODE_VERSION=24
 
-FROM node:$NODE_VERSION-slim AS dashboard
+FROM --platform=$BUILDPLATFORM node:$NODE_VERSION-slim AS dashboard
 
 WORKDIR /dashboard
 

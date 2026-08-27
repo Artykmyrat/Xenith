@@ -9,10 +9,8 @@ Three things happen automatically, all defined in `.github/workflows`:
 | `build-dev.yml` | push to `dev` | same, tagged `dev`, no deployment |
 | `deploy.yml` | called by `build.yml`, or manual | pulls the new image on the panel host and restarts it |
 
-The image is published to both registries:
-
-- `artykmyrat/xenith` on Docker Hub
-- `ghcr.io/artykmyrat/xenith` on GitHub Container Registry
+The image is published to `ghcr.io/artykmyrat/xenith`, and additionally to
+`artykmyrat/xenith` on Docker Hub when the `DOCKERHUB_*` secrets are set.
 
 Tags: `latest` and `sha-<short>` from `main`, `dev` from `dev`, and `1.2.3` /
 `1.2` from a `v1.2.3` git tag.
@@ -27,7 +25,7 @@ Set these under **Settings → Secrets and variables → Actions**:
 
 | Secret | Needed for | Notes |
 | --- | --- | --- |
-| `DOCKERHUB_USERNAME` | pushing to Docker Hub | omit to publish to ghcr.io only |
+| `DOCKERHUB_USERNAME` | pushing to Docker Hub | optional — without it the build publishes to ghcr.io only |
 | `DOCKERHUB_TOKEN` | pushing to Docker Hub | an access token, not the password |
 | `SSH_HOST` | deployment | address of the panel host |
 | `SSH_USER` | deployment | usually `root` |
