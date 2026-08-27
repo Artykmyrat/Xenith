@@ -855,7 +855,7 @@ class V2rayJsonConfig(str):
                         {
                             "id": id,
                             "alterId": 0,
-                            "email": "https://github.com/Artykmyrat/xenith",
+                            "email": "https://github.com/Artykmyrat/Xenith",
                             "security": "auto"
                         }
                     ],
@@ -875,7 +875,7 @@ class V2rayJsonConfig(str):
                             "id": id,
                             "security": "auto",
                             "encryption": "none",
-                            "email": "https://github.com/Artykmyrat/xenith",
+                            "email": "https://github.com/Artykmyrat/Xenith",
                             "alterId": 0,
                             "flow": flow
                         }
@@ -892,7 +892,7 @@ class V2rayJsonConfig(str):
                     "address": address,
                     "port": port,
                     "password": password,
-                    "email": "https://github.com/Artykmyrat/xenith",
+                    "email": "https://github.com/Artykmyrat/Xenith",
                 }
             ]
         }
@@ -905,7 +905,7 @@ class V2rayJsonConfig(str):
                     "address": address,
                     "port": port,
                     "password": password,
-                    "email": "https://github.com/Artykmyrat/xenith",
+                    "email": "https://github.com/Artykmyrat/Xenith",
                     "method": method,
                     "uot": False,
                 }

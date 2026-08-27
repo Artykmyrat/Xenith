@@ -64,7 +64,7 @@ For a fresh server there is an installer that does all of this — Docker, image
 certificate, `.env` and first start — in one go:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Artykmyrat/xenith/main/scripts/install.sh -o install.sh
+curl -fsSL https://raw.githubusercontent.com/Artykmyrat/Xenith/main/scripts/install.sh -o install.sh
 sudo bash install.sh --domain panel.example.com --email ops@example.com
 ```
 

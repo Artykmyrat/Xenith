@@ -22,7 +22,7 @@ dig +short panel.example.com
 ## Option 1 — the installer
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Artykmyrat/xenith/main/scripts/install.sh -o install.sh
+curl -fsSL https://raw.githubusercontent.com/Artykmyrat/Xenith/main/scripts/install.sh -o install.sh
 sudo bash install.sh --domain panel.example.com --email ops@example.com
 ```
 
@@ -64,7 +64,7 @@ mkdir -p /opt/xenith /var/lib/marzban /etc/letsencrypt
 **3. Image**
 
 ```bash
-git clone --depth 1 https://github.com/Artykmyrat/xenith.git /opt/xenith/src
+git clone --depth 1 https://github.com/Artykmyrat/Xenith.git /opt/xenith/src
 docker build -t xenith:local /opt/xenith/src
 ```
 
