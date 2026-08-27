@@ -15,6 +15,7 @@ import { theme } from "../chakra.config";
 import App from "./App";
 import "./index.css";
 import "index.scss";
+import "xenith/xenith.css";
 
 dayjs.extend(Timezone);
 dayjs.extend(LocalizedFormat);

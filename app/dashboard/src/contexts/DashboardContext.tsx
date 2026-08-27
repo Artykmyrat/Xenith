@@ -1,5 +1,4 @@
 import { router } from "@/pages/Router";
-import { StatisticsQueryKey } from "components/Statistics";
 import debounce from "lodash.debounce";
 import { fetch } from "service/http";
 import { User, UserCreate } from "types/User";
@@ -7,6 +6,8 @@ import { queryClient } from "utils/react-query";
 import { getUsersPerPageLimitSize } from "utils/userPreferenceStorage";
 import { create } from "zustand";
 import { subscribeWithSelector } from "zustand/middleware";
+
+export const StatisticsQueryKey = "statistics-query-key";
 
 export type FilterType = {
   limit?: number;
@@ -115,7 +116,8 @@ const serializeFilters = (f: Partial<FilterType>) => {
     {} as Record<string, string>,
   );
 
-  router.navigate(`/?${new URLSearchParams(parsedFilters).toString()}`, { replace: false });
+  // The user list lives at /users now, so filters serialise onto that route.
+  router.navigate(`/users?${new URLSearchParams(parsedFilters).toString()}`, { replace: false });
 };
 
 export const useDashboard = create(

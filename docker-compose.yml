@@ -1,6 +1,6 @@
 services:
-  skypanel:
-    image: artykmyrat/skypanel:latest
+  xenith:
+    image: artykmyrat/xenith:latest
     restart: always
     env_file: .env
     network_mode: host

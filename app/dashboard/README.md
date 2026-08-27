@@ -1,4 +1,4 @@
-# Dashboard UI for SkyPanel
+# Dashboard UI for Xenith
 
 The dashboard is a React + TypeScript app built with Vite and Chakra UI.
 It is served by the backend from `app/dashboard/build`.
@@ -20,7 +20,7 @@ Copy `example.env` to `.env` and set the backend API address:
 
 | Name          | Description                                    |
 | ------------- | ---------------------------------------------- |
-| VITE_BASE_API | API url of the deployed SkyPanel backend       |
+| VITE_BASE_API | API url of the deployed Xenith backend       |
 
 ## Development server
 

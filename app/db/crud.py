@@ -1254,6 +1254,42 @@ def get_nodes(db: Session,
     return query.all()
 
 
+def get_usage_series(db: Session, start: datetime, end: datetime, by_day: bool = False) -> List[Tuple[datetime, int, int]]:
+    """
+    Aggregates node traffic into a time series.
+
+    Records are stored one per hour per node, so the hourly series only has to
+    sum across nodes; a daily series folds those hours into their day first.
+
+    Args:
+        db (Session): The database session.
+        start (datetime): Start of the period.
+        end (datetime): End of the period.
+        by_day (bool): Bucket per day instead of per hour.
+
+    Returns:
+        List[Tuple[datetime, int, int]]: (bucket start, uplink, downlink), ordered by time.
+    """
+    rows = db.query(
+        NodeUsage.created_at,
+        func.sum(NodeUsage.uplink),
+        func.sum(NodeUsage.downlink),
+    ).filter(
+        and_(NodeUsage.created_at >= start, NodeUsage.created_at <= end)
+    ).group_by(NodeUsage.created_at).all()
+
+    buckets: Dict[datetime, List[int]] = {}
+    for created_at, uplink, downlink in rows:
+        bucket = created_at.replace(minute=0, second=0, microsecond=0)
+        if by_day:
+            bucket = bucket.replace(hour=0)
+        totals = buckets.setdefault(bucket, [0, 0])
+        totals[0] += uplink or 0
+        totals[1] += downlink or 0
+
+    return [(bucket, totals[0], totals[1]) for bucket, totals in sorted(buckets.items())]
+
+
 def get_nodes_usage(db: Session, start: datetime, end: datetime) -> List[NodeUsageResponse]:
     """
     Retrieves usage data for all nodes within a specified time range.

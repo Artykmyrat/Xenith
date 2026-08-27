@@ -50,8 +50,8 @@ import { Status } from "types/User";
 import { generateErrorMessage, generateSuccessMessage } from "utils/toastHandler";
 import { useDashboard } from "../contexts/DashboardContext";
 import { DeleteNodeModal } from "./DeleteNodeModal";
-import { DeleteIcon } from "./DeleteUserModal";
-import { ReloadIcon } from "./Filters";
+import { DeleteIcon } from "./Icon";
+import { ReloadIcon } from "./Icon";
 import { Icon } from "./Icon";
 import { NodeModalStatusBadge } from "./NodeModalStatusBadge";
 
@@ -381,7 +381,7 @@ const NodeForm: NodeFormType = ({
             <CustomInput
               label={t("nodes.nodeName")}
               size="sm"
-              placeholder="SkyPanel-S2"
+              placeholder="Xenith-S2"
               {...form.register("name")}
               error={form.formState?.errors?.name?.message}
             />
@@ -506,7 +506,7 @@ export const NodesDialog: FC = () => {
   return (
     <>
       <Modal isOpen={isEditingNodes} onClose={onClose}>
-        <ModalOverlay bg="blackAlpha.300" backdropFilter="blur(10px)" />
+        <ModalOverlay />
         <ModalContent mx="3" w="fit-content" maxW="3xl">
           <ModalHeader pt={6} className="flex gap-4 items-center">
             <Icon color="primary">

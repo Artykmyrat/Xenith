@@ -1,6 +1,6 @@
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.exc import IntegrityError
 
@@ -9,33 +9,41 @@ from app.db import Session, crud, get_db
 from app.dependencies import get_admin_by_username, validate_admin
 from app.models.admin import Admin, AdminCreate, AdminModify, Token
 from app.utils import report, responses
+from app.utils.auth_cookie import clear_access_cookie, set_access_cookie
+from app.utils.client_ip import get_client_ip
 from app.utils.jwt import create_admin_token
-from config import LOGIN_NOTIFY_WHITE_LIST
+from app.utils.rate_limit import SlidingWindowRateLimiter
+from config import (LOGIN_NOTIFY_WHITE_LIST, LOGIN_RATE_LIMIT_ATTEMPTS,
+                    LOGIN_RATE_LIMIT_WINDOW)
 
 router = APIRouter(tags=["Admin"], prefix="/api", responses={401: responses._401})
 
-
-def get_client_ip(request: Request) -> str:
-    """Extract the client's IP address from the request headers or client."""
-    forwarded_for = request.headers.get("X-Forwarded-For")
-    if forwarded_for:
-        return forwarded_for.split(",")[0].strip()
-    if request.client:
-        return request.client.host
-    return "Unknown"
+login_rate_limiter = SlidingWindowRateLimiter(
+    attempts=LOGIN_RATE_LIMIT_ATTEMPTS, window=LOGIN_RATE_LIMIT_WINDOW
+)
 
 
-@router.post("/admin/token", response_model=Token)
+@router.post("/admin/token", response_model=Token, responses={429: responses._429})
 def admin_token(
     request: Request,
+    response: Response,
     form_data: OAuth2PasswordRequestForm = Depends(),
     db: Session = Depends(get_db),
 ):
-    """Authenticate an admin and issue a token."""
+    """Authenticate an admin, set the session cookie and return the token."""
     client_ip = get_client_ip(request)
+
+    retry_after = login_rate_limiter.retry_after(client_ip)
+    if retry_after:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many failed login attempts. Try again later.",
+            headers={"Retry-After": str(retry_after)},
+        )
 
     dbadmin = validate_admin(db, form_data.username, form_data.password)
     if not dbadmin:
+        login_rate_limiter.record_failure(client_ip)
         report.login(form_data.username, client_ip, False)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -43,10 +51,25 @@ def admin_token(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
+    login_rate_limiter.reset(client_ip)
+
     if client_ip not in LOGIN_NOTIFY_WHITE_LIST:
         report.login(form_data.username, client_ip, True)
 
-    return Token(access_token=create_admin_token(form_data.username, dbadmin.is_sudo))
+    token = create_admin_token(form_data.username, dbadmin.is_sudo)
+    # The dashboard rides on the cookie; the body keeps the CLI and other API
+    # clients working with the Authorization header.
+    set_access_cookie(response, request, token)
+
+    return Token(access_token=token)
+
+
+@router.post("/admin/logout")
+def admin_logout(request: Request, response: Response):
+    """Drop the session cookie. Deliberately unauthenticated so an expired
+    session can still be cleaned up."""
+    clear_access_cookie(response, request)
+    return {"detail": "Logged out"}
 
 
 @router.post(
@@ -84,7 +107,7 @@ def modify_admin(
     if (dbadmin.username != current_admin.username) and dbadmin.is_sudo:
         raise HTTPException(
             status_code=403,
-            detail="You're not allowed to edit another sudoer's account. Use skypanel-cli instead.",
+            detail="You're not allowed to edit another sudoer's account. Use xenith-cli instead.",
         )
 
     updated_admin = crud.update_admin(db, dbadmin, modified_admin)
@@ -105,7 +128,7 @@ def remove_admin(
     if dbadmin.is_sudo:
         raise HTTPException(
             status_code=403,
-            detail="You're not allowed to delete sudo accounts. Use skypanel-cli instead.",
+            detail="You're not allowed to delete sudo accounts. Use xenith-cli instead.",
         )
 
     crud.remove_admin(db, dbadmin)

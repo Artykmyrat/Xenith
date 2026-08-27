@@ -8,12 +8,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.routing import APIRoute
 
-from config import ALLOWED_ORIGINS, DOCS, XRAY_SUBSCRIPTION_PATH
+from app.utils.cors import cors_policy
+from config import ALLOWED_ORIGINS, DEBUG, DOCS, XRAY_SUBSCRIPTION_PATH
 
 __version__ = "0.8.4"
 
 app = FastAPI(
-    title="SkyPanelAPI",
+    title="XenithAPI",
     description="Unified GUI Censorship Resistant Solution Powered by Xray",
     version=__version__,
     openapi_url="/openapi.json" if DOCS else None,
@@ -24,13 +25,17 @@ scheduler = BackgroundScheduler(
 )
 logger = logging.getLogger("uvicorn.error")
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=ALLOWED_ORIGINS,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+_cors = cors_policy(ALLOWED_ORIGINS, debug=DEBUG)
+if _cors.warning:
+    logger.warning(_cors.warning)
+if _cors.enabled:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=_cors.origins,
+        allow_credentials=_cors.allow_credentials,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 from app import dashboard, jobs, routers, telegram  # noqa
 from app.routers import api_router  # noqa
 

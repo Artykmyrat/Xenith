@@ -1,8 +1,8 @@
-# Contributing to SkyPanel
+# Contributing to Xenith
 
-Thanks for considering contributing to SkyPanel!
+Thanks for considering contributing to Xenith!
 
-SkyPanel is a fork of [Marzban](https://github.com/Gozargah/Marzban) and is
+Xenith is a fork of [Marzban](https://github.com/Gozargah/Marzban) and is
 licensed under the AGPL-3.0. By submitting a pull request you agree that your
 contribution is distributed under that same license.
 
@@ -13,7 +13,7 @@ Include the following in your report:
 - What you expected to happen and what actually happened.
 - Server logs, or the error shown in the browser.
 - Your Xray JSON config and relevant `.env` settings, with secrets censored.
-- The versions of SkyPanel, Xray and Docker you are running.
+- The versions of Xenith, Xray and Docker you are running.
 
 ## Submitting a pull request
 
@@ -55,6 +55,9 @@ pytest
 
 Coverage is thin so far — new tests alongside your change are welcome.
 
+CI runs the same suite on every push and pull request, and the Docker image is
+only built and published once it passes.
+
 ## Frontend
 
 Chakra UI is the component library; follow its conventions. Prefer cohesive,
@@ -70,7 +73,7 @@ Built with [Typer](https://typer.tiangolo.com/). Command code lives in `cli/`.
 Regenerate its documentation with `typer-cli` installed:
 
 ```bash
-PYTHONPATH=$(pwd) typer skypanel-cli.py utils docs --name "" --output ./cli/README.md
+PYTHONPATH=$(pwd) typer xenith-cli.py utils docs --name "" --output ./cli/README.md
 ```
 
 ## Debug mode

@@ -6,7 +6,11 @@ on:
       - "dev"
 
 jobs:
+  test:
+    uses: ./.github/workflows/test.yml
+
   build-dev:
+    needs: test
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -62,5 +66,5 @@ jobs:
           platforms: linux/amd64,linux/arm64
           push: true
           tags: |
-            artykmyrat/skypanel:${{github.ref_name}}
-            ghcr.io/artykmyrat/skypanel:${{github.ref_name}}
+            artykmyrat/xenith:${{github.ref_name}}
+            ghcr.io/artykmyrat/xenith:${{github.ref_name}}
