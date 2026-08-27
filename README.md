@@ -68,6 +68,15 @@ curl -fsSL https://raw.githubusercontent.com/Artykmyrat/Xenith/main/scripts/inst
 sudo bash install.sh --domain panel.example.com --email ops@example.com
 ```
 
+It also installs a `xenith` command on the host:
+
+```bash
+xenith logs -f                 # panel logs
+xenith restart                 # restart after editing .env
+xenith cli admin create --sudo # add an admin
+xenith update                  # rebuild from the latest sources
+```
+
 See [docs/INSTALL.md](./docs/INSTALL.md) for the manual steps, running behind a
 reverse proxy, upgrades and backups.
 

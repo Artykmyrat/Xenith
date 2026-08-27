@@ -172,20 +172,38 @@ docker compose -f /opt/xenith/docker-compose.yml restart
 
 ## Day to day
 
+The installer puts a `xenith` command on the host that wraps the container:
+
 ```bash
-# logs
+xenith up                      # start
+xenith down                    # stop
+xenith restart                 # restart, e.g. after editing .env
+xenith status                  # container state
+xenith logs -f                 # follow the panel log
+xenith update                  # pull the latest sources, rebuild, restart
+xenith cli admin create --sudo # another sudo admin
+xenith certbot certificates    # certbot, inside the container
+xenith env                     # edit .env
+xenith shell                   # shell inside the container
+```
+
+`xenith-cli` itself lives inside the container, so run it through `xenith cli`.
+If you installed by hand, drop the wrapper in place yourself:
+
+```bash
+install -m 755 /opt/xenith/src/scripts/xenith /usr/local/bin/xenith
+```
+
+Everything it does is also available directly:
+
+```bash
 docker compose -f /opt/xenith/docker-compose.yml logs -f
+docker compose -f /opt/xenith/docker-compose.yml exec xenith xenith-cli admin list
+```
 
-# restart
-docker compose -f /opt/xenith/docker-compose.yml restart
+Backup — the database, the config and the certificates:
 
-# another sudo admin
-docker compose -f /opt/xenith/docker-compose.yml exec xenith xenith-cli admin create --sudo
-
-# upgrade
-sudo bash install.sh --yes            # or: docker build + docker compose up -d
-
-# backup — the database, the config and the certificates
+```bash
 tar czf xenith-backup-$(date +%F).tar.gz /var/lib/marzban /opt/xenith/.env /etc/letsencrypt
 ```
 
@@ -193,7 +211,7 @@ Renewals: certbot's own timer does not exist inside the container, so renew
 either from the Certificates screen or with a cron entry on the host:
 
 ```cron
-0 3 * * * docker compose -f /opt/xenith/docker-compose.yml exec -T xenith certbot renew --quiet && docker compose -f /opt/xenith/docker-compose.yml restart
+0 3 * * * /usr/local/bin/xenith certbot renew --quiet && /usr/local/bin/xenith restart
 ```
 
 ## When something is wrong

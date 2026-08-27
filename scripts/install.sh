@@ -226,6 +226,16 @@ services:
       - $LETSENCRYPT_DIR:/etc/letsencrypt
 COMPOSE
 
+# ── host command ─────────────────────────────────────────────────────────────
+
+log "Installing the xenith command"
+if [[ -f "$INSTALL_DIR/src/scripts/xenith" ]]; then
+  install -m 755 "$INSTALL_DIR/src/scripts/xenith" /usr/local/bin/xenith
+else
+  curl -fsSL "https://raw.githubusercontent.com/Artykmyrat/Xenith/$REPO_REF/scripts/xenith" -o /usr/local/bin/xenith
+  chmod 755 /usr/local/bin/xenith
+fi
+
 # ── start ────────────────────────────────────────────────────────────────────
 
 log "Starting the panel"
@@ -251,7 +261,7 @@ echo
 if (( ready )); then
   log "Xenith is running"
 else
-  warn "The panel did not answer yet. Check: docker compose -f $INSTALL_DIR/docker-compose.yml logs -f"
+  warn "The panel did not answer yet. Check: xenith logs -f"
 fi
 
 if { (( PANEL_PORT == 443 )) && [[ "$scheme" == "https" ]]; } || { (( PANEL_PORT == 80 )) && [[ "$scheme" == "http" ]]; }; then
@@ -276,6 +286,7 @@ if ! (( HAVE_CERT )); then
 fi
 
 echo
-echo "    logs      : docker compose -f $INSTALL_DIR/docker-compose.yml logs -f"
-echo "    restart   : docker compose -f $INSTALL_DIR/docker-compose.yml restart"
-echo "    cli       : docker compose -f $INSTALL_DIR/docker-compose.yml exec xenith xenith-cli admin create --sudo"
+echo "    logs      : xenith logs -f"
+echo "    restart   : xenith restart"
+echo "    cli       : xenith cli admin create --sudo"
+echo "    update    : xenith update"
