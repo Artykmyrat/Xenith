@@ -1,8 +1,8 @@
 #!/bin/bash
 
-SERVICE_NAME="skypanel"
-SERVICE_DESCRIPTION="SkyPanel Service"
-SERVICE_DOCUMENTATION="https://github.com/Artykmyrat/SkyPanel"
+SERVICE_NAME="xenith"
+SERVICE_DESCRIPTION="Xenith Service"
+SERVICE_DOCUMENTATION="https://github.com/Artykmyrat/xenith"
 MAIN_PY_PATH="$PWD/main.py"
 SERVICE_FILE="/etc/systemd/system/$SERVICE_NAME.service"
 

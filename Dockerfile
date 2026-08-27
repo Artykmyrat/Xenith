@@ -28,9 +28,11 @@ COPY --from=build /usr/local/share/xray /usr/local/share/xray
 
 COPY . /code
 
-RUN ln -s /code/skypanel-cli.py /usr/bin/skypanel-cli \
-    && chmod +x /usr/bin/skypanel-cli \
-    && ln -s /usr/bin/skypanel-cli /usr/bin/marzban-cli \
-    && skypanel-cli completion install --shell bash
+# skypanel-cli and marzban-cli stay as aliases so existing scripts keep working.
+RUN ln -s /code/xenith-cli.py /usr/bin/xenith-cli \
+    && chmod +x /usr/bin/xenith-cli \
+    && ln -s /usr/bin/xenith-cli /usr/bin/skypanel-cli \
+    && ln -s /usr/bin/xenith-cli /usr/bin/marzban-cli \
+    && xenith-cli completion install --shell bash
 
 CMD ["bash", "-c", "alembic upgrade head; python main.py"]

@@ -55,7 +55,7 @@ import "slick-carousel/slick/slick-theme.css";
 import "slick-carousel/slick/slick.css";
 import { z } from "zod";
 import { useDashboard } from "../contexts/DashboardContext";
-import { DeleteIcon } from "./DeleteUserModal";
+import { DeleteIcon } from "./Icon";
 import { Icon } from "./Icon";
 import { Input as CustomInput } from "./Input";
 
@@ -1085,7 +1085,7 @@ export const HostsDialog: FC = () => {
 
   return (
     <Modal isOpen={isEditingHosts} onClose={onClose}>
-      <ModalOverlay bg="blackAlpha.300" backdropFilter="blur(10px)" />
+      <ModalOverlay />
       <ModalContent mx="3" w="fit-content" maxW="3xl">
         <ModalHeader pt={6} className="flex gap-4 items-center">
           <Icon color="primary">

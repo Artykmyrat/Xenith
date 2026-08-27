@@ -11,6 +11,7 @@ from app.db import Session, get_db
 from app.models.admin import Admin
 from app.models.core import CoreStats
 from app.utils import responses
+from app.utils.auth_cookie import token_from_websocket
 from app.xray import XRayConfig
 from config import XRAY_JSON
 
@@ -19,9 +20,7 @@ router = APIRouter(tags=["Core"], prefix="/api", responses={401: responses._401}
 
 @router.websocket("/core/logs")
 async def core_logs(websocket: WebSocket, db: Session = Depends(get_db)):
-    token = websocket.query_params.get("token") or websocket.headers.get(
-        "Authorization", ""
-    ).removeprefix("Bearer ")
+    token = token_from_websocket(websocket)
     admin = Admin.get_admin(token, db)
     if not admin:
         return await websocket.close(reason="Unauthorized", code=4401)

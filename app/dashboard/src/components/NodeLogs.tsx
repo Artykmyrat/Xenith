@@ -5,7 +5,6 @@ import { CSSProperties, FC, useCallback, useEffect, useLayoutEffect, useRef, use
 import { useTranslation } from "react-i18next";
 import { ReadyState } from "react-use-websocket";
 import { useWebSocket } from "react-use-websocket/dist/lib/use-websocket";
-import { getAuthToken } from "utils/authStorage";
 import { useNodesQuery } from "contexts/NodesContext";
 import { useVirtualizer } from "@tanstack/react-virtual";
 
@@ -32,8 +31,8 @@ const getWebsocketUrl = (nodeID: string) => {
     return (
       (baseURL.protocol === "https:" ? "wss://" : "ws://") +
       joinPaths([baseURL.host + baseURL.pathname, !nodeID ? "/core/logs" : `/node/${nodeID}/logs`]) +
-      "?interval=1&token=" +
-      getAuthToken()
+      // The handshake carries the session cookie, so no token in the URL.
+      "?interval=1"
     );
   } catch (e) {
     console.error("Unable to generate websocket url");

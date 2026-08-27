@@ -12,8 +12,8 @@ from app.db.models import User
 T = TypeVar("T")
 
 rich_console = Console()
-# MARZBAN_ADMIN_PASSWORD is kept for compatibility with Marzban deployments
-PASSWORD_ENVIRON_NAME = ["SKYPANEL_ADMIN_PASSWORD", "MARZBAN_ADMIN_PASSWORD"]
+# The older names are kept so SkyPanel and Marzban deployments keep working
+PASSWORD_ENVIRON_NAME = ["XENITH_ADMIN_PASSWORD", "SKYPANEL_ADMIN_PASSWORD", "MARZBAN_ADMIN_PASSWORD"]
 
 FLAGS: Dict[str, tuple] = {
     "username": ("--username", "-u"),

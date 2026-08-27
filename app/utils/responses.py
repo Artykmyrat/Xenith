@@ -23,6 +23,10 @@ class Conflict(HTTPException):
     detail: str = "Entity already exists"
 
 
+class TooManyRequests(HTTPException):
+    detail: str = "Too many failed login attempts. Try again later."
+
+
 _400 = {"description": "BadRequest Error", "model": HTTPException}
 
 _401 = {
@@ -43,3 +47,16 @@ _403 = {"description": "Forbidden Error", "model": Forbidden}
 _404 = {"description": "NotFound Error", "model": NotFound}
 
 _409 = {"description": "Conflict Error", "model": Conflict}
+
+_429 = {
+    "description": "TooManyRequests Error",
+    "model": TooManyRequests,
+    "headers": {
+        "Retry-After": {
+            "description": "Seconds to wait before retrying",
+            "schema": {
+                "type": "string"
+            },
+        },
+    },
+}

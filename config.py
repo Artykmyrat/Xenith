@@ -19,7 +19,13 @@ DASHBOARD_PATH = config("DASHBOARD_PATH", default="/dashboard/")
 DEBUG = config("DEBUG", default=False, cast=bool)
 DOCS = config("DOCS", default=False, cast=bool)
 
-ALLOWED_ORIGINS = config("ALLOWED_ORIGINS", default="*").split(",")
+# Browser origins allowed to call the API cross-origin. Empty by default: the
+# bundled dashboard is served from the same origin and needs no CORS at all.
+ALLOWED_ORIGINS = [
+    origin.strip()
+    for origin in config("ALLOWED_ORIGINS", default="").split(",")
+    if origin.strip()
+]
 
 VITE_BASE_API = (
     f"{'https' if UVICORN_SSL_CERTFILE and UVICORN_SSL_KEYFILE else 'http'}://127.0.0.1:{UVICORN_PORT}/api/"
@@ -49,6 +55,38 @@ TELEGRAM_LOGGER_TOPIC_ID = config("TELEGRAM_LOGGER_TOPIC_ID", cast=int, default=
 TELEGRAM_DEFAULT_VLESS_FLOW = config("TELEGRAM_DEFAULT_VLESS_FLOW", default="")
 
 JWT_ACCESS_TOKEN_EXPIRE_MINUTES = config("JWT_ACCESS_TOKEN_EXPIRE_MINUTES", cast=int, default=1440)
+
+# Brute-force protection for the admin login endpoint. A client IP that fails
+# LOGIN_RATE_LIMIT_ATTEMPTS times within LOGIN_RATE_LIMIT_WINDOW seconds gets
+# 429 until the window slides past. Set attempts to 0 to disable.
+LOGIN_RATE_LIMIT_ATTEMPTS = config("LOGIN_RATE_LIMIT_ATTEMPTS", cast=int, default=5)
+LOGIN_RATE_LIMIT_WINDOW = config("LOGIN_RATE_LIMIT_WINDOW", cast=int, default=300)
+
+# TLS certificates issued through certbot from the Certificates screen. Off by
+# default: it lets the panel run a system binary, so it has to be turned on
+# deliberately on a host where certbot is installed and the panel runs as root.
+CERTBOT_ENABLED = config("CERTBOT_ENABLED", default=False, cast=bool)
+# Resolved through PATH by default, which finds both the distro package
+# (/usr/bin) and the one installed from requirements.txt (/usr/local/bin).
+CERTBOT_EXECUTABLE_PATH = config("CERTBOT_EXECUTABLE_PATH", default="certbot")
+# Registration email for Let's Encrypt expiry notices; may be set per request.
+CERTBOT_EMAIL = config("CERTBOT_EMAIL", default="")
+# Default directory for webroot validation, when the panel sits behind a server
+# that already serves .well-known/acme-challenge.
+CERTBOT_WEBROOT = config("CERTBOT_WEBROOT", default="")
+# Use the Let's Encrypt staging environment; certificates are untrusted but the
+# rate limits are far looser, which is what you want while setting this up.
+CERTBOT_STAGING = config("CERTBOT_STAGING", default=False, cast=bool)
+CERTBOT_TIMEOUT = config("CERTBOT_TIMEOUT", cast=int, default=180)
+
+# Reverse proxies whose X-Forwarded-For / X-Real-IP headers may be believed,
+# as IPs or CIDRs. Empty means the headers are ignored and the peer address is
+# used; "*" trusts every peer (only safe when the panel is unreachable directly).
+TRUSTED_PROXIES = [
+    proxy.strip()
+    for proxy in config("TRUSTED_PROXIES", default="", cast=str).split(",")
+    if proxy.strip()
+]
 
 # Subscription tokens issued before the switch to HMAC signatures are still
 # accepted by default so existing links keep working. Set to False once your

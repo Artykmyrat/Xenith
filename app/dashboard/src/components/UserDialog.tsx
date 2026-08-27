@@ -44,12 +44,12 @@ import { useTranslation } from "react-i18next";
 import { ProxyKeys, ProxyType, User, UserCreate, UserInbounds } from "types/User";
 import { relativeExpiryDate } from "utils/dateFormatter";
 import { z } from "zod";
-import { DeleteIcon } from "./DeleteUserModal";
+import { DeleteIcon } from "./Icon";
 import { Icon } from "./Icon";
 import { Input } from "./Input";
 import { RadioGroup } from "./RadioGroup";
 import { UsageFilter, createUsageConfig } from "./UsageFilter";
-import { ReloadIcon } from "./Filters";
+import { ReloadIcon } from "./Icon";
 import classNames from "classnames";
 
 const AddUserIcon = chakra(UserPlusIcon, {
@@ -348,7 +348,7 @@ export const UserDialog: FC<UserDialogProps> = () => {
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} size="2xl">
-      <ModalOverlay bg="blackAlpha.300" backdropFilter="blur(10px)" />
+      <ModalOverlay />
       <FormProvider {...form}>
         <ModalContent mx="3">
           <form onSubmit={form.handleSubmit(submit)}>
