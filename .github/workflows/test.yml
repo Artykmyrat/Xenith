@@ -39,16 +39,25 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
-      - name: Enable corepack
-        run: npm i -g corepack && corepack enable
-
+      # setup-node first, then corepack: its own pnpm cache resolves the store
+      # path before corepack has run, which leaves it with nothing to save.
       - name: Setup nodejs
         uses: actions/setup-node@v6
         with:
           node-version: "24"
-          cache: "pnpm"
-          cache-dependency-path: "app/dashboard/pnpm-lock.yaml"
           package-manager-cache: false
+
+      - name: Enable corepack
+        run: |
+          npm i -g corepack && corepack enable
+          echo "PNPM_STORE=$(pnpm store path --silent)" >> "$GITHUB_ENV"
+
+      - name: Cache the pnpm store
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.PNPM_STORE }}
+          key: pnpm-${{ runner.os }}-${{ hashFiles('app/dashboard/pnpm-lock.yaml') }}
+          restore-keys: pnpm-${{ runner.os }}-
 
       - name: Install dependencies
         working-directory: ./app/dashboard
