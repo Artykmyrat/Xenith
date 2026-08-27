@@ -6,8 +6,7 @@
     "dev": "vite --port 3000",
     "build": "tsc && vite build",
     "preview": "vite preview --port 3000",
-    "gen:theme-typings": "chakra-cli tokens ./chakra.config.ts",
-    "postinstall": "npm run gen:theme-typings"
+    "gen:theme-typings": "chakra-cli tokens ./chakra.config.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.5.0",
