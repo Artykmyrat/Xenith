@@ -24,6 +24,7 @@ os.environ.update(
 )
 
 import json  # noqa: E402
+import subprocess  # noqa: E402
 
 import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
@@ -40,6 +41,8 @@ from app.db.base import Base  # noqa: E402
 from app.models.admin import AdminCreate, pwd_context  # noqa: E402
 from app.models.user import UserCreate  # noqa: E402
 from app.utils import jwt as jwt_utils  # noqa: E402
+from app.utils import sysctl  # noqa: E402
+from app.utils.sysctl_catalog import TUNABLES  # noqa: E402
 
 # bcrypt at its production cost factor is ~0.25s per hash, which the admin
 # fixtures pay several times per test. The suite is not testing bcrypt itself.
@@ -229,3 +232,55 @@ def new_user(username: str, **overrides) -> UserCreate:
     payload = {"username": username, "proxies": {"vmess": {}}, "inbounds": {}}
     payload.update(overrides)
     return UserCreate(**payload)
+
+
+@pytest.fixture
+def proc(tmp_path, monkeypatch):
+    """A stand-in /proc/sys holding the baseline values.
+
+    Kernel tuning is tested against a directory tree rather than the real
+    /proc/sys: the suite has to run on a developer's machine and in CI without
+    touching either one's kernel.
+    """
+    root = tmp_path / "proc"
+    for tunable in TUNABLES:
+        path = root / tunable.proc_path
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(tunable.baseline + "\n")
+
+    monkeypatch.setattr(sysctl, "SYSCTL_PROC_PATH", str(root))
+    return root
+
+
+@pytest.fixture
+def conf(tmp_path, monkeypatch):
+    """The managed sysctl.d file, somewhere harmless."""
+    directory = tmp_path / "sysctl.d"
+    directory.mkdir()
+    path = directory / "99-xenith.conf"
+    monkeypatch.setattr(sysctl, "SYSCTL_CONF_PATH", str(path))
+    return path
+
+
+@pytest.fixture
+def enabled(monkeypatch):
+    monkeypatch.setattr(sysctl, "SYSCTL_ENABLED", True)
+
+
+@pytest.fixture
+def sysctl_runs(monkeypatch):
+    """Stand in for the sysctl binary, recording how it was invoked."""
+    calls = []
+
+    def fake_run(args, **kwargs):
+        calls.append(args)
+        return subprocess.CompletedProcess(args, 0, stdout="", stderr="")
+
+    monkeypatch.setattr(sysctl.subprocess, "run", fake_run)
+    return calls
+
+
+@pytest.fixture
+def tunable_host(enabled, proc, conf, sysctl_runs):
+    """Everything kernel tuning needs, wired to temporary files."""
+    return sysctl_runs

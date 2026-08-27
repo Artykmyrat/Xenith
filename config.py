@@ -79,6 +79,18 @@ CERTBOT_WEBROOT = config("CERTBOT_WEBROOT", default="")
 CERTBOT_STAGING = config("CERTBOT_STAGING", default=False, cast=bool)
 CERTBOT_TIMEOUT = config("CERTBOT_TIMEOUT", cast=int, default=180)
 
+# Kernel tuning from the System settings screen. Off by default: writing
+# /proc/sys needs root, and a container only has it when started privileged,
+# so this has to be turned on deliberately on a host that can carry it.
+SYSCTL_ENABLED = config("SYSCTL_ENABLED", default=False, cast=bool)
+SYSCTL_EXECUTABLE_PATH = config("SYSCTL_EXECUTABLE_PATH", default="sysctl")
+# The one file the panel owns. Everything it applies is written here, and
+# nothing else under /etc/sysctl.d is read or touched.
+SYSCTL_CONF_PATH = config("SYSCTL_CONF_PATH", default="/etc/sysctl.d/99-xenith.conf")
+# Where the live values are read from; only ever changed by the tests.
+SYSCTL_PROC_PATH = config("SYSCTL_PROC_PATH", default="/proc/sys")
+SYSCTL_TIMEOUT = config("SYSCTL_TIMEOUT", cast=int, default=30)
+
 # Reverse proxies whose X-Forwarded-For / X-Real-IP headers may be believed,
 # as IPs or CIDRs. Empty means the headers are ignored and the peer address is
 # used; "*" trusts every peer (only safe when the panel is unreachable directly).

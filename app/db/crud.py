@@ -15,6 +15,7 @@ from app.db.models import (
     TLS,
     Admin,
     AdminUsageLogs,
+    NetworkProfile,
     NextPlan,
     Node,
     NodeUsage,
@@ -30,6 +31,7 @@ from app.db.models import (
     UserUsageResetLogs,
 )
 from app.models.admin import AdminCreate, AdminModify, AdminPartialModify
+from app.models.network import NetworkProfileCreate, NetworkProfileModify
 from app.models.node import NodeCreate, NodeModify, NodeStatus, NodeUsageResponse
 from app.models.proxy import ProxyHost as ProxyHostModify
 from app.models.user import (
@@ -1555,3 +1557,87 @@ def count_online_users(db: Session, hours: int = 24):
     query = db.query(func.count(User.id)).filter(User.online_at.isnot(
         None), User.online_at >= twenty_four_hours_ago)
     return query.scalar()
+
+
+BUILTIN_PROFILE_NAME = "Xenith baseline"
+BUILTIN_PROFILE_DESCRIPTION = (
+    "The tuning Xenith ships with: BBR, large socket buffers, a conntrack table "
+    "sized for a proxy, and the hardening defaults."
+)
+
+
+def get_network_profiles(db: Session) -> List[NetworkProfile]:
+    """Every saved profile, with the built-in one created on first use.
+
+    Seeding here rather than in a migration keeps the profile in step with the
+    catalogue: a panel upgrade that retunes a default updates the built-in
+    profile too, instead of leaving a stale copy in the database.
+    """
+    from app.utils.sysctl_catalog import BASELINE
+
+    builtin = db.query(NetworkProfile).filter(NetworkProfile.builtin.is_(True)).first()
+    if builtin is None:
+        builtin = NetworkProfile(
+            name=BUILTIN_PROFILE_NAME,
+            description=BUILTIN_PROFILE_DESCRIPTION,
+            settings=dict(BASELINE),
+            builtin=True,
+        )
+        db.add(builtin)
+        db.commit()
+    elif builtin.settings != BASELINE:
+        builtin.settings = dict(BASELINE)
+        builtin.updated_at = datetime.utcnow()
+        db.commit()
+
+    return db.query(NetworkProfile).order_by(
+        NetworkProfile.builtin.desc(), NetworkProfile.name.asc()
+    ).all()
+
+
+def get_network_profile(db: Session, profile_id: int) -> Optional[NetworkProfile]:
+    return db.query(NetworkProfile).filter(NetworkProfile.id == profile_id).first()
+
+
+def get_network_profile_by_name(db: Session, name: str) -> Optional[NetworkProfile]:
+    return db.query(NetworkProfile).filter(NetworkProfile.name == name).first()
+
+
+def create_network_profile(
+    db: Session, profile: NetworkProfileCreate, settings: Dict[str, str]
+) -> NetworkProfile:
+    dbprofile = NetworkProfile(
+        name=profile.name,
+        description=profile.description,
+        settings=settings,
+        builtin=False,
+    )
+    db.add(dbprofile)
+    db.commit()
+    db.refresh(dbprofile)
+    return dbprofile
+
+
+def update_network_profile(
+    db: Session,
+    dbprofile: NetworkProfile,
+    modify: NetworkProfileModify,
+    settings: Optional[Dict[str, str]] = None,
+) -> NetworkProfile:
+    if modify.name is not None:
+        dbprofile.name = modify.name
+    if modify.description is not None:
+        dbprofile.description = modify.description or None
+    if settings is not None:
+        dbprofile.settings = settings
+
+    dbprofile.updated_at = datetime.utcnow()
+    db.commit()
+    db.refresh(dbprofile)
+    return dbprofile
+
+
+def remove_network_profile(db: Session, dbprofile: NetworkProfile) -> NetworkProfile:
+    db.delete(dbprofile)
+    db.commit()
+    return dbprofile

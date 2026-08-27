@@ -1,6 +1,7 @@
 import { FC } from "react";
 import { useTranslation } from "react-i18next";
 import { CoreSettingsModal } from "components/CoreSettingsModal";
+import { NetworkSettings } from "components/NetworkSettings";
 import { useDashboard } from "contexts/DashboardContext";
 import { useAdmin, useCoreStats, useSystemStats } from "xenith/api";
 import { Blueprint } from "xenith/Blueprint";
@@ -59,6 +60,11 @@ export const Settings: FC = () => {
           ))}
         </div>
       </Blueprint>
+
+      {/* Kernel tuning is sudo-only on the API side, so it is not rendered for
+          anyone who could only be refused by it. */}
+      {admin?.is_sudo && <NetworkSettings />}
+
       <CoreSettingsModal />
     </>
   );

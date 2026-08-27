@@ -8,6 +8,8 @@ type ConfirmDialogProps = {
   confirmLabel: string;
   busy?: boolean;
   danger?: boolean;
+  /** Blocks confirmation while the dialog's own form is incomplete. */
+  confirmDisabled?: boolean;
   onConfirm: () => void;
   onClose: () => void;
 };
@@ -20,6 +22,7 @@ export const ConfirmDialog: FC<ConfirmDialogProps> = ({
   confirmLabel,
   busy = false,
   danger = false,
+  confirmDisabled = false,
   onConfirm,
   onClose,
 }) => {
@@ -40,7 +43,7 @@ export const ConfirmDialog: FC<ConfirmDialogProps> = ({
           <button
             className={`xn-btn ${danger ? "xn-btn-danger" : "xn-btn-primary"}`}
             onClick={onConfirm}
-            disabled={busy}
+            disabled={busy || confirmDisabled}
           >
             {busy ? t("xenith.working") : confirmLabel}
           </button>

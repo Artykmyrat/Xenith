@@ -173,3 +173,38 @@ def readable_size(size_bytes):
     p = math.pow(1024, i)
     s = round(size_bytes / p, 2)
     return f'{s} {size_name[i]}'
+
+
+@dataclass
+class InterfaceStat:
+    name: str
+    mac: str = None
+    mtu: int = None
+    addresses: list = None
+
+
+def network_interfaces() -> list:
+    """Interfaces the host has, loopback aside.
+
+    Reported so the System settings screen can show what it is tuning; the
+    panel never reconfigures an interface, since the request that did it would
+    arrive over the one being changed.
+    """
+    stats = psutil.net_if_stats()
+    interfaces = []
+
+    for name, addresses in psutil.net_if_addrs().items():
+        if name == "lo":
+            continue
+
+        mac = next((a.address for a in addresses if a.family == psutil.AF_LINK), None)
+        ips = [
+            a.address for a in addresses
+            if a.family in (socket.AF_INET, socket.AF_INET6) and a.address
+        ]
+        stat = stats.get(name)
+        interfaces.append(
+            InterfaceStat(name=name, mac=mac, mtu=stat.mtu if stat else None, addresses=ips)
+        )
+
+    return sorted(interfaces, key=lambda interface: interface.name)

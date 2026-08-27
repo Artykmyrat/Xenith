@@ -120,6 +120,69 @@ export const renewCertificate = (name: string) =>
 export const deleteCertificate = (name: string) =>
   fetch(`/certificates/${encodeURIComponent(name)}`, { method: "DELETE" });
 
+export type Tunable = {
+  key: string;
+  kind: "int" | "ints" | "text";
+  description: string;
+  baseline: string;
+  value: string;
+  customised: boolean;
+};
+
+export type NetworkSection = { id: string; title: string; settings: Tunable[] };
+
+export type NetworkInterface = { name: string; mac: string | null; mtu: number | null; addresses: string[] };
+
+export type NetworkSettings = {
+  enabled: boolean;
+  writable: boolean;
+  reason: string | null;
+  managed_file: string;
+  sections: NetworkSection[];
+  interfaces: NetworkInterface[];
+};
+
+export type NetworkApplyResult = {
+  applied: string[];
+  failed: { key: string; message: string }[];
+  settings: NetworkSettings;
+};
+
+export type NetworkProfile = {
+  id: number;
+  name: string;
+  description: string | null;
+  builtin: boolean;
+  settings: Record<string, string>;
+  created_at: string | null;
+  updated_at: string | null;
+};
+
+/** Kernel tunables the panel manages. Sudo only, so failures are swallowed. */
+export const useNetworkSettings = () =>
+  useQuery<NetworkSettings>("xenith-network", () => fetch("/network"), { retry: false });
+
+export const useNetworkProfiles = () =>
+  useQuery<NetworkProfile[]>("xenith-network-profiles", () => fetch("/network/profiles"), { retry: false });
+
+export const saveNetworkSettings = (settings: Record<string, string>) =>
+  fetch("/network", { method: "PUT", body: { settings } }) as Promise<NetworkApplyResult>;
+
+export const resetNetworkSettings = () =>
+  fetch("/network/reset", { method: "POST" }) as Promise<NetworkApplyResult>;
+
+export const createNetworkProfile = (body: {
+  name: string;
+  description?: string;
+  settings?: Record<string, string>;
+}) => fetch("/network/profiles", { method: "POST", body }) as Promise<NetworkProfile>;
+
+export const applyNetworkProfile = (id: number) =>
+  fetch(`/network/profiles/${id}/apply`, { method: "POST" }) as Promise<NetworkApplyResult>;
+
+export const deleteNetworkProfile = (id: number) =>
+  fetch(`/network/profiles/${id}`, { method: "DELETE" });
+
 export const restartCore = () => fetch("/core/restart", { method: "POST" });
 
 /** Every inbound, flattened out of the by-protocol map the API returns. */

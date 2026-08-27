@@ -354,3 +354,23 @@ class NotificationReminder(Base):
     threshold = Column(Integer, nullable=True)
     expires_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class NetworkProfile(Base):
+    """A named set of kernel tunables that can be applied in one go.
+
+    `settings` holds only keys from the sysctl catalogue; the router validates
+    against it before anything is stored, so a profile can never carry a key
+    the panel would refuse to apply.
+    """
+
+    __tablename__ = "network_profiles"
+
+    id = Column(Integer, primary_key=True)
+    name = Column(String(64), unique=True, index=True, nullable=False)
+    description = Column(String(512), nullable=True)
+    settings = Column(JSON, nullable=False, default={})
+    # Shipped with the panel: it can be applied and copied, but not edited away.
+    builtin = Column(Boolean, nullable=False, default=False, server_default='0')
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=True)
