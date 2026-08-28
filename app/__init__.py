@@ -59,6 +59,19 @@ def on_startup():
         raise ValueError(
             f"you can't use /{XRAY_SUBSCRIPTION_PATH}/ as subscription path it reserved for {app.title}"
         )
+
+    # A proxy holds two descriptors per connection, so the default soft limit of
+    # 1024 runs out long before anything else does. Raising soft up to hard
+    # needs no privilege, so this is unconditional.
+    from app.utils.limits import raise_own_limits, read_limits  # noqa: circular at import time
+
+    report = raise_own_limits()
+    nofile = next((limit for limit in read_limits() if limit.name == "nofile"), None)
+    if report.raised:
+        logger.info(f"Raised open file limit to {nofile.soft if nofile else '?'}")
+    for problem in report.problems:
+        logger.warning(f"Could not raise resource limit: {problem}")
+
     scheduler.start()
 
 

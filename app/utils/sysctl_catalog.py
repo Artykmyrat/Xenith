@@ -20,6 +20,7 @@ SECTIONS: Tuple[Tuple[str, str], ...] = (
     ("routing", "Routing and forwarding"),
     ("icmp", "ICMP"),
     ("ipv6", "IPv6"),
+    ("files", "File descriptors"),
     ("memory", "Memory"),
     ("kernel", "Kernel"),
 )
@@ -225,6 +226,12 @@ TUNABLES: Tuple[Tunable, ...] = (
        "Privacy addresses. 2 prefers a temporary address for outgoing connections."),
     _t("net.ipv6.conf.default.use_tempaddr", "ipv6", "int", "2",
        "Privacy addresses on interfaces added later."),
+
+    # --- File descriptors ----------------------------------------------------
+    _t("fs.file-max", "files", "int", "2097152",
+       "Open files allowed across the whole system. A proxy holds two per connection."),
+    _t("fs.nr_open", "files", "int", "1048576",
+       "Ceiling on any one process's file descriptor limit. Nothing can raise nofile above it."),
 
     # --- Memory --------------------------------------------------------------
     _t("vm.swappiness", "memory", "int", "10",

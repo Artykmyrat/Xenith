@@ -183,6 +183,41 @@ export const applyNetworkProfile = (id: number) =>
 export const deleteNetworkProfile = (id: number) =>
   fetch(`/network/profiles/${id}`, { method: "DELETE" });
 
+export type ResourceLimit = {
+  name: string;
+  soft: number | null;
+  hard: number | null;
+  /** null when the panel only reports this limit rather than raising it. */
+  target: number | null;
+  managed: boolean;
+  at_target: boolean;
+};
+
+export type LimitsSnippet = { path: string; content: string; restart: string };
+
+export type ResourceLimits = {
+  enabled: boolean;
+  reason: string | null;
+  kernel_ceiling: number | null;
+  target: number;
+  limits: ResourceLimit[];
+  snippets: LimitsSnippet[];
+};
+
+export type LimitsApplyResult = {
+  raised: string[];
+  written: LimitsSnippet[];
+  problems: string[];
+  limits: ResourceLimits;
+};
+
+/** The panel's own rlimits, and the host files that still need applying. */
+export const useResourceLimits = () =>
+  useQuery<ResourceLimits>("xenith-limits", () => fetch("/network/limits"), { retry: false });
+
+export const raiseResourceLimits = () =>
+  fetch("/network/limits/raise", { method: "POST" }) as Promise<LimitsApplyResult>;
+
 export const restartCore = () => fetch("/core/restart", { method: "POST" });
 
 /** Every inbound, flattened out of the by-protocol map the API returns. */

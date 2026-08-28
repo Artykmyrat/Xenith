@@ -19,7 +19,7 @@ REPO_URL=https://github.com/Artykmyrat/Xenith.git
 REPO_REF=main
 IMAGE=xenith:local
 IMAGE_SOURCE=build          # build | pull
-PULL_IMAGE=artykmyrat/xenith:latest
+PULL_IMAGE=ghcr.io/artykmyrat/xenith:latest
 DOMAIN=""
 EMAIL=""
 PANEL_PORT=8000
@@ -221,6 +221,12 @@ services:
     restart: always
     env_file: .env
     network_mode: host
+    # A proxy holds two descriptors per connection; the Docker default of 1024
+    # runs out long before anything else does.
+    ulimits:
+      nofile:
+        soft: 1048576
+        hard: 1048576
     volumes:
       - $DATA_DIR:/var/lib/marzban
       - $LETSENCRYPT_DIR:/etc/letsencrypt

@@ -109,3 +109,42 @@ class NetworkProfileModify(BaseModel):
         if not name:
             raise ValueError("A profile needs a name.")
         return name
+
+
+class ResourceLimit(BaseModel):
+    """One rlimit of the panel process. A null value means unlimited."""
+
+    name: str
+    soft: Optional[int] = None
+    hard: Optional[int] = None
+    # None when the panel only reports this limit rather than raising it.
+    target: Optional[int] = None
+    managed: bool
+    at_target: bool
+
+
+class LimitsSnippet(BaseModel):
+    """A file the host needs, and what has to restart before it counts."""
+
+    path: str
+    content: str
+    restart: str
+
+
+class ResourceLimits(BaseModel):
+    enabled: bool
+    # Why the host files cannot be written, when they cannot.
+    reason: Optional[str] = None
+    # The ceiling fs.nr_open puts on any process, and the value the panel aims for.
+    kernel_ceiling: Optional[int] = None
+    target: int
+    limits: List[ResourceLimit]
+    # Shown so an admin can apply by hand what the panel will not restart for them.
+    snippets: List[LimitsSnippet]
+
+
+class LimitsApplyResult(BaseModel):
+    raised: List[str]
+    written: List[LimitsSnippet] = []
+    problems: List[str] = []
+    limits: ResourceLimits

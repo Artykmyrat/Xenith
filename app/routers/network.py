@@ -6,6 +6,7 @@ reaches. The response always carries whether writing is possible and why not,
 so the dashboard can render the screen read-only rather than failing per key.
 """
 
+import json
 from typing import Dict, List
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -13,11 +14,14 @@ from sqlalchemy.exc import IntegrityError
 
 from app.db import Session, crud, get_db
 from app.models.admin import Admin
-from app.models.network import (NetworkApplyResult, NetworkInterface,
+from app.models.network import (LimitsApplyResult, LimitsSnippet,
+                                NetworkApplyResult, NetworkInterface,
                                 NetworkProfileCreate, NetworkProfileModify,
                                 NetworkProfileResponse, NetworkSection,
                                 NetworkSettings, NetworkSettingsModify,
-                                TunableFailure, TunableResponse)
+                                ResourceLimit, ResourceLimits, TunableFailure,
+                                TunableResponse)
+from app.utils import limits as rlimits
 from app.utils import responses, sysctl
 from app.utils.sysctl_catalog import BASELINE, TUNABLES, section_titles
 from app.utils.system import network_interfaces
@@ -213,3 +217,99 @@ def apply_network_profile(
         raise HTTPException(status_code=404, detail="Profile not found")
 
     return _apply(_validated(dbprofile.settings))
+
+
+def _snippets() -> List[LimitsSnippet]:
+    """The host files this feature manages, plus the compose block for the panel.
+
+    Handed to the dashboard verbatim so an admin can apply them by hand: none
+    of them mean anything until something restarts, and the panel restarts
+    neither itself nor the daemon running it.
+    """
+    from config import (ULIMIT_DOCKER_DAEMON_PATH, ULIMIT_LIMITS_CONF_PATH,
+                        ULIMIT_SYSTEMD_CONF_PATH)
+
+    return [
+        LimitsSnippet(
+            path=ULIMIT_LIMITS_CONF_PATH,
+            content=rlimits.limits_conf(),
+            restart=rlimits.RESTART_NOTES["limits"],
+        ),
+        LimitsSnippet(
+            path=ULIMIT_SYSTEMD_CONF_PATH,
+            content=rlimits.systemd_conf(),
+            restart=rlimits.RESTART_NOTES["systemd"],
+        ),
+        LimitsSnippet(
+            path=ULIMIT_DOCKER_DAEMON_PATH,
+            content=json.dumps({"default-ulimits": rlimits.docker_ulimits()}, indent=2) + "\n",
+            restart=rlimits.RESTART_NOTES["docker"],
+        ),
+        LimitsSnippet(
+            path="docker-compose.yml",
+            content=rlimits.compose_snippet(),
+            restart="run `xenith restart` (or `docker compose up -d`) to pick it up",
+        ),
+    ]
+
+
+def _current_limits() -> ResourceLimits:
+    return ResourceLimits(
+        enabled=rlimits.is_enabled(),
+        reason=rlimits.writable(),
+        kernel_ceiling=rlimits.kernel_nr_open(),
+        target=rlimits.nofile_target(),
+        limits=[
+            ResourceLimit(
+                name=limit.name,
+                soft=limit.soft,
+                hard=limit.hard,
+                target=limit.target,
+                managed=limit.managed,
+                at_target=limit.at_target,
+            )
+            for limit in rlimits.read_limits()
+        ],
+        snippets=_snippets(),
+    )
+
+
+@router.get("/network/limits", response_model=ResourceLimits, responses={403: responses._403})
+def get_resource_limits(admin: Admin = Depends(Admin.check_sudo_admin)):
+    """The panel's own resource limits, and what the host still needs."""
+    return _current_limits()
+
+
+@router.post(
+    "/network/limits/raise",
+    response_model=LimitsApplyResult,
+    responses={400: responses._400, 403: responses._403},
+)
+def raise_resource_limits(admin: Admin = Depends(Admin.check_sudo_admin)):
+    """Raise the limits to the maximum: this process now, the host on disk.
+
+    The panel's own descriptor limit moves immediately. The host files are
+    written only when ULIMIT_ENABLED is set, and each one is reported with the
+    restart it still needs — nothing here restarts Docker or the panel.
+    """
+    try:
+        report = rlimits.apply_host_limits()
+    except rlimits.LimitsError as err:
+        # Even with the host files unavailable, this process can still be lifted.
+        own = rlimits.raise_own_limits()
+        if not own.raised:
+            raise HTTPException(status_code=400, detail=str(err))
+        report = own
+        report.problems.append(str(err))
+
+    written = [
+        LimitsSnippet(path=path, content="", restart=restart)
+        for path, restart in report.written.items()
+    ]
+
+    return LimitsApplyResult(
+        raised=report.raised,
+        written=written,
+        problems=report.problems,
+        limits=_current_limits(),
+    )

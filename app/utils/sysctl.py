@@ -16,10 +16,10 @@ does not have unless it was started for it.
 import os
 import re
 import subprocess
-import tempfile
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple
 
+from app.utils.files import FileWriteError, atomic_write
 from app.utils.sysctl_catalog import BASELINE, BY_KEY, TUNABLES, Tunable, section_titles
 from config import (SYSCTL_CONF_PATH, SYSCTL_ENABLED, SYSCTL_EXECUTABLE_PATH,
                     SYSCTL_PROC_PATH, SYSCTL_TIMEOUT)
@@ -148,21 +148,10 @@ def render(values: Dict[str, str]) -> str:
 
 
 def _write_conf(content: str) -> None:
-    """Replace the managed file atomically, so a crash cannot leave it half written."""
-    directory = os.path.dirname(SYSCTL_CONF_PATH)
-    handle = tempfile.NamedTemporaryFile(
-        "w", dir=directory, prefix=".xenith-sysctl-", delete=False
-    )
     try:
-        with handle:
-            handle.write(content)
-            handle.flush()
-            os.fsync(handle.fileno())
-        os.chmod(handle.name, 0o644)
-        os.replace(handle.name, SYSCTL_CONF_PATH)
-    except OSError as err:
-        os.unlink(handle.name)
-        raise SysctlError(f"Could not write {SYSCTL_CONF_PATH}: {err}")
+        atomic_write(SYSCTL_CONF_PATH, content)
+    except FileWriteError as err:
+        raise SysctlError(str(err))
 
 
 def _parse_failures(output: str) -> List[Tuple[str, str]]:

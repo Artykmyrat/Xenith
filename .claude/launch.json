@@ -28,14 +28,6 @@
       ],
       "port": 8001,
       "url": "http://localhost:8001"
-    },
-    {
-      "name": "xenith-preview",
-      "runtimeExecutable": "bash",
-      "runtimeArgs": [
-        "/private/tmp/claude-501/-Users-user-Desktop-Marzban/8848a287-7415-4e02-a532-0ccb024ea5b0/scratchpad/preview/run.sh"
-      ],
-      "port": 8000
     }
   ]
 }

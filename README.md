@@ -38,7 +38,7 @@ image and restarting. Back up `/var/lib/marzban` and your `.env` first.
 
 The panel was called SkyPanel until this release. Nothing in your data changes:
 
-- point `docker-compose.yml` at `artykmyrat/xenith` and restart
+- point `docker-compose.yml` at `ghcr.io/artykmyrat/xenith` and restart
 - `skypanel-cli` still works, as an alias of `xenith-cli`
 - `SKYPANEL_ADMIN_PASSWORD` is still read
 - dashboard sessions are signed under a new cookie name, so everyone signs in once more
@@ -48,10 +48,14 @@ The panel was called SkyPanel until this release. Nothing in your data changes:
 ```yaml
 services:
   xenith:
-    image: artykmyrat/xenith:latest
+    image: ghcr.io/artykmyrat/xenith:latest
     restart: always
     env_file: .env
     network_mode: host
+    ulimits:
+      nofile:
+        soft: 1048576
+        hard: 1048576
     volumes:
       - /var/lib/marzban:/var/lib/marzban
 ```

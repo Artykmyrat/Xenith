@@ -91,6 +91,26 @@ SYSCTL_CONF_PATH = config("SYSCTL_CONF_PATH", default="/etc/sysctl.d/99-xenith.c
 SYSCTL_PROC_PATH = config("SYSCTL_PROC_PATH", default="/proc/sys")
 SYSCTL_TIMEOUT = config("SYSCTL_TIMEOUT", cast=int, default=30)
 
+# Resource limits. The panel always raises its own soft limits to the hard
+# ceiling at startup, which needs no privilege at all. Writing the host's limit
+# files is separate and off by default, because those live under /etc and only
+# take effect once something is restarted.
+ULIMIT_ENABLED = config("ULIMIT_ENABLED", default=False, cast=bool)
+# What "maximum" means for open files. 1048576 is the kernel's own fs.nr_open
+# default; going far past it breaks software that walks its descriptor table.
+ULIMIT_TARGET_NOFILE = config("ULIMIT_TARGET_NOFILE", cast=int, default=1048576)
+# Login sessions on the host, through PAM. Does not reach systemd services or
+# containers, which is why the two paths below exist as well.
+ULIMIT_LIMITS_CONF_PATH = config(
+    "ULIMIT_LIMITS_CONF_PATH", default="/etc/security/limits.d/99-xenith.conf"
+)
+# The default every systemd unit on the host inherits.
+ULIMIT_SYSTEMD_CONF_PATH = config(
+    "ULIMIT_SYSTEMD_CONF_PATH", default="/etc/systemd/system.conf.d/99-xenith.conf"
+)
+# The default every container gets from the Docker daemon.
+ULIMIT_DOCKER_DAEMON_PATH = config("ULIMIT_DOCKER_DAEMON_PATH", default="/etc/docker/daemon.json")
+
 # Reverse proxies whose X-Forwarded-For / X-Real-IP headers may be believed,
 # as IPs or CIDRs. Empty means the headers are ignored and the peer address is
 # used; "*" trusts every peer (only safe when the panel is unreachable directly).

@@ -351,3 +351,115 @@ class TestApplyProfile:
 
         assert response.status_code == 400
         assert not conf.exists()
+
+
+class TestResourceLimits:
+    """The /api/network/limits endpoints."""
+
+    @pytest.fixture
+    def host(self, tmp_path, monkeypatch):
+        from app.utils import limits as rlimits
+
+        for directory in ("security/limits.d", "systemd/system.conf.d", "docker"):
+            (tmp_path / directory).mkdir(parents=True)
+
+        paths = {
+            "limits": tmp_path / "security/limits.d/99-xenith.conf",
+            "systemd": tmp_path / "systemd/system.conf.d/99-xenith.conf",
+            "docker": tmp_path / "docker/daemon.json",
+        }
+        monkeypatch.setattr(rlimits, "ULIMIT_ENABLED", True)
+        monkeypatch.setattr(rlimits, "ULIMIT_LIMITS_CONF_PATH", str(paths["limits"]))
+        monkeypatch.setattr(rlimits, "ULIMIT_SYSTEMD_CONF_PATH", str(paths["systemd"]))
+        monkeypatch.setattr(rlimits, "ULIMIT_DOCKER_DAEMON_PATH", str(paths["docker"]))
+        return paths
+
+    @pytest.fixture
+    def restore_nofile(self):
+        import resource
+
+        before = resource.getrlimit(resource.RLIMIT_NOFILE)
+        yield before
+        resource.setrlimit(resource.RLIMIT_NOFILE, before)
+
+    def test_reading_needs_sudo(self, client, plain_admin):
+        assert client.get("/api/network/limits", headers=auth(plain_admin)).status_code == 403
+
+    def test_raising_needs_sudo(self, client, plain_admin):
+        assert client.post("/api/network/limits/raise", headers=auth(plain_admin)).status_code == 403
+
+    def test_the_current_limits_are_reported(self, client, sudo_admin):
+        body = client.get("/api/network/limits", headers=auth(sudo_admin)).json()
+
+        assert {limit["name"] for limit in body["limits"]} >= {"nofile"}
+        assert body["target"] > 0
+
+    def test_an_unlimited_hard_limit_is_null_not_a_huge_number(self, client, sudo_admin, restore_nofile):
+        import resource
+
+        resource.setrlimit(resource.RLIMIT_NOFILE, (1024, resource.RLIM_INFINITY))
+
+        body = client.get("/api/network/limits", headers=auth(sudo_admin)).json()
+        nofile = next(limit for limit in body["limits"] if limit["name"] == "nofile")
+
+        assert nofile["hard"] is None
+
+    def test_the_host_snippets_are_handed_over_ready_to_apply(self, client, sudo_admin):
+        body = client.get("/api/network/limits", headers=auth(sudo_admin)).json()
+        paths = [snippet["path"] for snippet in body["snippets"]]
+
+        assert "docker-compose.yml" in paths
+        assert any(snippet["content"] and snippet["restart"] for snippet in body["snippets"])
+
+    def test_writing_is_reported_as_unavailable_by_default(self, client, sudo_admin):
+        body = client.get("/api/network/limits", headers=auth(sudo_admin)).json()
+
+        assert body["enabled"] is False
+        assert "ULIMIT_ENABLED" in body["reason"]
+
+    def test_raising_writes_the_host_files(self, client, sudo_admin, host, restore_nofile):
+        body = client.post("/api/network/limits/raise", headers=auth(sudo_admin)).json()
+
+        assert {snippet["path"] for snippet in body["written"]} == {str(p) for p in host.values()}
+        assert all(path.exists() for path in host.values())
+
+    def test_each_written_file_carries_its_restart_note(self, client, sudo_admin, host, restore_nofile):
+        body = client.post("/api/network/limits/raise", headers=auth(sudo_admin)).json()
+
+        assert all(snippet["restart"] for snippet in body["written"])
+
+    def test_the_process_limit_is_lifted(self, client, sudo_admin, host, restore_nofile, monkeypatch):
+        import resource
+
+        from app.utils import limits as rlimits
+
+        monkeypatch.setattr(rlimits, "kernel_nr_open", lambda: 65536)
+        resource.setrlimit(resource.RLIMIT_NOFILE, (1024, restore_nofile[1]))
+
+        body = client.post("/api/network/limits/raise", headers=auth(sudo_admin)).json()
+
+        assert body["raised"] == ["nofile"]
+        assert resource.getrlimit(resource.RLIMIT_NOFILE)[0] == 65536
+
+    def test_with_host_writing_off_the_process_is_still_lifted(
+        self, client, sudo_admin, restore_nofile, monkeypatch
+    ):
+        """The two halves are independent, and the useful one needs no privilege."""
+        import resource
+
+        from app.utils import limits as rlimits
+
+        monkeypatch.setattr(rlimits, "kernel_nr_open", lambda: 65536)
+        resource.setrlimit(resource.RLIMIT_NOFILE, (1024, restore_nofile[1]))
+
+        body = client.post("/api/network/limits/raise", headers=auth(sudo_admin)).json()
+
+        assert body["raised"] == ["nofile"]
+        assert any("ULIMIT_ENABLED" in problem for problem in body["problems"])
+
+    def test_with_nothing_to_do_at_all_it_is_a_400(self, client, sudo_admin, restore_nofile):
+        """Already at the maximum and unable to write: say so rather than claim success."""
+        response = client.post("/api/network/limits/raise", headers=auth(sudo_admin))
+
+        assert response.status_code == 400
+        assert "ULIMIT_ENABLED" in response.json()["detail"]

@@ -9,8 +9,12 @@ Three things happen automatically, all defined in `.github/workflows`:
 | `build-dev.yml` | push to `dev` | same, tagged `dev`, no deployment |
 | `deploy.yml` | called by `build.yml`, or manual | pulls the new image on the panel host and restarts it |
 
-The image is published to `ghcr.io/artykmyrat/xenith`, and additionally to
-`artykmyrat/xenith` on Docker Hub when the `DOCKERHUB_*` secrets are set.
+The image is published to `ghcr.io/artykmyrat/xenith`, which is what every
+default in this repository points at. It is additionally pushed to
+`artykmyrat/xenith` on Docker Hub, but only when the `DOCKERHUB_USERNAME` and
+`DOCKERHUB_TOKEN` secrets are set; without them that Docker Hub repository
+does not exist, and a `docker compose pull` aimed at it quietly finds nothing
+to update.
 
 Tags: `latest` and `sha-<short>` from `main`, `dev` from `dev`, and `1.2.3` /
 `1.2` from a `v1.2.3` git tag.

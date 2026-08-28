@@ -4,16 +4,20 @@ import { FC, FormEvent, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useQueryClient } from "react-query";
 import {
+  LimitsSnippet,
   NetworkApplyResult,
   NetworkProfile,
+  ResourceLimit,
   Tunable,
   applyNetworkProfile,
   createNetworkProfile,
   deleteNetworkProfile,
+  raiseResourceLimits,
   resetNetworkSettings,
   saveNetworkSettings,
   useNetworkProfiles,
   useNetworkSettings,
+  useResourceLimits,
 } from "xenith/api";
 import { Blueprint } from "xenith/Blueprint";
 import { ConfirmDialog } from "xenith/ConfirmDialog";
@@ -48,6 +52,187 @@ const NoticeBox: FC<{ tone?: "warn"; children: React.ReactNode }> = ({ children 
     <div style={{ fontSize: 12.5, lineHeight: 1.45, color: "var(--xn-accent-900)" }}>{children}</div>
   </div>
 );
+
+
+/** Formats an rlimit, where null means the kernel imposes no limit at all. */
+const formatLimit = (value: number | null, unlimited: string) =>
+  value === null ? unlimited : value.toLocaleString("en-US");
+
+/**
+ * Open file limits.
+ *
+ * Split into what the panel can do by itself — lifting its own soft limit,
+ * which needs no privilege — and what the host has to be told, which only
+ * counts once something restarts. The two are shown apart because confusing
+ * them is why a raised limit so often turns out not to have been raised.
+ */
+const ResourceLimitsCard: FC = () => {
+  const { t } = useTranslation();
+  const toast = useToast();
+  const queryClient = useQueryClient();
+  const { data, isLoading } = useResourceLimits();
+  const [busy, setBusy] = useState(false);
+  const [shown, setShown] = useState<LimitsSnippet | null>(null);
+
+  const onRaise = () => {
+    setBusy(true);
+    raiseResourceLimits()
+      .then((result) => {
+        queryClient.invalidateQueries("xenith-limits");
+        toast({
+          title: result.raised.length
+            ? t("xenith.limits.raised")
+            : t("xenith.limits.alreadyAtMaximum"),
+          description: result.problems.join(" ") || undefined,
+          status: result.problems.length ? "warning" : "success",
+          position: "top",
+          duration: 6000,
+          isClosable: true,
+        });
+      })
+      .catch((err) =>
+        toast({
+          title: describe(err, t("xenith.limits.failed")),
+          status: "error",
+          position: "top",
+          duration: 6000,
+          isClosable: true,
+        }),
+      )
+      .finally(() => setBusy(false));
+  };
+
+  const nofile = data?.limits.find((limit: ResourceLimit) => limit.name === "nofile");
+
+  return (
+    <>
+      <Blueprint style={{ padding: "18px 20px 20px", display: "flex", flexDirection: "column", gap: 14 }}>
+        <PanelHead
+          title={t("xenith.limits.title")}
+          note={t("xenith.limits.note")}
+          trailing={
+            <button
+              className="xn-btn xn-btn-primary"
+              style={{ fontSize: 12.5 }}
+              onClick={onRaise}
+              disabled={busy || isLoading}
+            >
+              {busy ? t("xenith.limits.raising") : t("xenith.limits.raise")}
+            </button>
+          }
+        />
+
+        {nofile && !nofile.at_target && (
+          <NoticeBox>{t("xenith.limits.belowTarget", { target: data?.target })}</NoticeBox>
+        )}
+
+        <div className="xn-scroll-x">
+          <table className="xn-table" style={{ fontSize: 13 }}>
+            <thead>
+              <tr>
+                <th>{t("xenith.limits.limit")}</th>
+                <th>{t("xenith.limits.soft")}</th>
+                <th>{t("xenith.limits.hard")}</th>
+                <th>{t("xenith.limits.target")}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {(data?.limits || []).map((limit) => (
+                <tr key={limit.name}>
+                  <td className="xn-mono" style={{ fontSize: 12 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <span>{limit.name}</span>
+                      {limit.managed ? (
+                        limit.at_target && (
+                          <span className="xn-tag xn-tag-accent">{t("xenith.limits.atMaximum")}</span>
+                        )
+                      ) : (
+                        <span className="xn-tag xn-tag-neutral">{t("xenith.limits.reportOnly")}</span>
+                      )}
+                    </div>
+                  </td>
+                  <td className="xn-mono" style={{ fontSize: 12 }}>
+                    {formatLimit(limit.soft, t("xenith.limits.unlimited"))}
+                  </td>
+                  <td className="xn-mono" style={{ fontSize: 12, color: "var(--xn-neutral-600)" }}>
+                    {formatLimit(limit.hard, t("xenith.limits.unlimited"))}
+                  </td>
+                  <td className="xn-mono" style={{ fontSize: 12, color: "var(--xn-neutral-600)" }}>
+                    {limit.managed ? formatLimit(limit.target, t("xenith.limits.unlimited")) : "—"}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        <span style={{ fontSize: 11.5, lineHeight: 1.5, color: "var(--xn-neutral-600)" }}>
+          {data?.kernel_ceiling
+            ? t("xenith.limits.ceiling", { value: data.kernel_ceiling.toLocaleString("en-US") })
+            : t("xenith.limits.ceilingUnknown")}
+        </span>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          <span className="xn-label">{t("xenith.limits.hostTitle")}</span>
+          <span style={{ fontSize: 11.5, lineHeight: 1.5, color: "var(--xn-neutral-600)" }}>
+            {data?.enabled ? t("xenith.limits.hostBody") : data?.reason}
+          </span>
+          {(data?.snippets || []).map((snippet) => (
+            <div
+              key={snippet.path}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+                padding: "8px 0",
+                borderTop: "1px solid var(--xn-neutral-200)",
+              }}
+            >
+              <span className="xn-mono" style={{ fontSize: 12, marginRight: "auto" }}>
+                {snippet.path}
+              </span>
+              <span style={{ fontSize: 11, color: "var(--xn-neutral-600)" }}>{snippet.restart}</span>
+              <button
+                className="xn-btn xn-btn-secondary"
+                style={{ fontSize: 12 }}
+                onClick={() => setShown(snippet)}
+              >
+                {t("xenith.limits.show")}
+              </button>
+            </div>
+          ))}
+        </div>
+      </Blueprint>
+
+      <ConfirmDialog
+        open={!!shown}
+        title={shown?.path || ""}
+        body={
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <span style={{ fontSize: 12 }}>{shown?.restart}</span>
+            <pre
+              className="xn-mono"
+              style={{
+                fontSize: 11.5,
+                lineHeight: 1.5,
+                margin: 0,
+                padding: 10,
+                overflowX: "auto",
+                border: "1px solid var(--xn-neutral-200)",
+                background: "var(--xn-neutral-100)",
+              }}
+            >
+              {shown?.content}
+            </pre>
+          </div>
+        }
+        confirmLabel={t("close")}
+        onConfirm={() => setShown(null)}
+        onClose={() => setShown(null)}
+      />
+    </>
+  );
+};
 
 /**
  * Kernel tunables and the profiles that group them.
@@ -358,6 +543,8 @@ export const NetworkSettings: FC = () => {
           </div>
         )}
       </Blueprint>
+
+      <ResourceLimitsCard />
 
       <Blueprint style={{ padding: "18px 20px 20px", display: "flex", flexDirection: "column", gap: 14 }}>
         <PanelHead

@@ -246,3 +246,30 @@ xenith image ghcr.io/artykmyrat/xenith:latest
 
 From then on every push to `main` in the repository rebuilds that image and
 deploys it here, provided the SSH secrets are set — see [CI.md](./CI.md).
+
+
+## Open file limits
+
+A proxy holds two file descriptors per connection, so the default soft limit of
+1024 runs out long before CPU or memory does. Four places decide what a process
+gets, and none of them reach each other:
+
+| Where | What it covers | Applied by |
+|---|---|---|
+| the process itself | the panel | raised at startup, always, no privilege needed |
+| `docker-compose.yml` `ulimits:` | the panel's container | `xenith restart` |
+| `/etc/docker/daemon.json` `default-ulimits` | every container | `systemctl restart docker` |
+| `/etc/systemd/system.conf.d/` | host systemd units | `systemctl daemon-reexec` |
+| `/etc/security/limits.d/` | host login sessions | next login |
+
+The compose file this repository ships already carries the `ulimits:` block, so
+a fresh install needs nothing further for the panel itself.
+
+**System settings → Resource limits** shows what the panel is running under and
+what the host still needs. *Raise to maximum* lifts the panel's own limit
+immediately; with `ULIMIT_ENABLED=true` it also writes the three host files.
+Nothing is restarted for you — restarting the Docker daemon would take the
+panel down with it — so the screen lists what each file still needs.
+
+The ceiling on all of this is `fs.nr_open` (1048576 by default), editable under
+**File descriptors** on the same screen.
