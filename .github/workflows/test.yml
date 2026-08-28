@@ -33,6 +33,31 @@ jobs:
       - name: Run tests
         run: pytest -q
 
+  # Its own job rather than a step in `pytest`: a new advisory and a failing
+  # test are separate signals, and you want to see both in one run instead of
+  # the first one hiding the second.
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install pip-audit
+        run: python -m pip install --upgrade pip pip-audit
+
+      # Only what ships in the image. pip-audit resolves the pinned tree
+      # itself, so this needs no other dependency installed. A new advisory
+      # against a pinned version fails the run, which also holds back
+      # build.yml — that is the point. Make it advisory with
+      # `continue-on-error: true` if that turns out too strict.
+      - name: Audit dependencies
+        run: pip-audit -r requirements.txt --progress-spinner off
+
   dashboard:
     runs-on: ubuntu-latest
     steps:

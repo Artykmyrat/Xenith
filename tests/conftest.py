@@ -208,6 +208,8 @@ def client(db):
 
     Deliberately not used as a context manager: entering one would run the
     startup handlers, which start the scheduler and build the dashboard.
+    That leaves `on_startup` itself uncovered here, so it is exercised
+    directly in test_app_startup.py instead.
     """
 
     def override_db():
