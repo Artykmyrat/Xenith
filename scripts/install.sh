@@ -256,7 +256,9 @@ COMPOSE
 # Strip the blank lines the empty substitutions leave behind.
 sed -i '/^[[:space:]]*$/d' "$INSTALL_DIR/docker-compose.yml"
 
-if (( WITH_NGINX )); then
+# Only once: re-running the installer keeps an existing .env, and appending
+# again would leave the file with a growing stack of the same setting.
+if (( WITH_NGINX )) && ! grep -qE '^[[:space:]]*NGINX_ENABLED' "$ENV_FILE"; then
   echo "NGINX_ENABLED = True" >> "$ENV_FILE"
 fi
 
