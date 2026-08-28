@@ -35,10 +35,32 @@ def host(tmp_path, monkeypatch):
 
 @pytest.fixture
 def nofile():
-    """Restore whatever this process was running under."""
+    """Restore whatever this process was running under.
+
+    Only the soft limit is ever moved here. Raising a hard limit needs
+    CAP_SYS_RESOURCE, which a CI runner does not have, and lowering one cannot
+    be undone for the life of the process.
+    """
     before = resource.getrlimit(resource.RLIMIT_NOFILE)
     yield before
     resource.setrlimit(resource.RLIMIT_NOFILE, before)
+
+
+@pytest.fixture
+def reported_as(monkeypatch):
+    """Report chosen rlimits without asking the kernel to apply them.
+
+    The unlimited case cannot be set up for real without privilege, so it is
+    stubbed at the boundary instead.
+    """
+
+    def stub(values):
+        real = resource.getrlimit
+        monkeypatch.setattr(
+            limits.resource, "getrlimit", lambda which: values.get(which, real(which))
+        )
+
+    return stub
 
 
 class TestAtomicWrite:
@@ -97,8 +119,8 @@ class TestReadLimits:
 
         assert "nofile" in names
 
-    def test_unlimited_reads_as_none_rather_than_a_huge_number(self, nofile, monkeypatch):
-        resource.setrlimit(resource.RLIMIT_NOFILE, (1024, resource.RLIM_INFINITY))
+    def test_unlimited_reads_as_none_rather_than_a_huge_number(self, reported_as):
+        reported_as({resource.RLIMIT_NOFILE: (1024, resource.RLIM_INFINITY)})
 
         reported = next(limit for limit in limits.read_limits() if limit.name == "nofile")
 

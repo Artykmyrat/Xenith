@@ -394,10 +394,20 @@ class TestResourceLimits:
         assert {limit["name"] for limit in body["limits"]} >= {"nofile"}
         assert body["target"] > 0
 
-    def test_an_unlimited_hard_limit_is_null_not_a_huge_number(self, client, sudo_admin, restore_nofile):
+    def test_an_unlimited_hard_limit_is_null_not_a_huge_number(self, client, sudo_admin, monkeypatch):
+        """Stubbed rather than applied: raising a hard limit needs CAP_SYS_RESOURCE."""
         import resource
 
-        resource.setrlimit(resource.RLIMIT_NOFILE, (1024, resource.RLIM_INFINITY))
+        from app.utils import limits as rlimits
+
+        real = resource.getrlimit
+        monkeypatch.setattr(
+            rlimits.resource,
+            "getrlimit",
+            lambda which: (1024, resource.RLIM_INFINITY)
+            if which == resource.RLIMIT_NOFILE
+            else real(which),
+        )
 
         body = client.get("/api/network/limits", headers=auth(sudo_admin)).json()
         nofile = next(limit for limit in body["limits"] if limit["name"] == "nofile")
@@ -457,8 +467,13 @@ class TestResourceLimits:
         assert body["raised"] == ["nofile"]
         assert any("ULIMIT_ENABLED" in problem for problem in body["problems"])
 
-    def test_with_nothing_to_do_at_all_it_is_a_400(self, client, sudo_admin, restore_nofile):
+    def test_with_nothing_to_do_at_all_it_is_a_400(self, client, sudo_admin, monkeypatch):
         """Already at the maximum and unable to write: say so rather than claim success."""
+        from app.utils import limits as rlimits
+
+        # Pinned below whatever this machine is running, so there is nothing to raise.
+        monkeypatch.setattr(rlimits, "kernel_nr_open", lambda: 1)
+
         response = client.post("/api/network/limits/raise", headers=auth(sudo_admin))
 
         assert response.status_code == 400
