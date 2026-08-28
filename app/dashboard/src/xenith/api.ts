@@ -218,6 +218,78 @@ export const useResourceLimits = () =>
 export const raiseResourceLimits = () =>
   fetch("/network/limits/raise", { method: "POST" }) as Promise<LimitsApplyResult>;
 
+export type NginxStatus = {
+  enabled: boolean;
+  running: boolean;
+  version: string | null;
+  config_ok: boolean | null;
+  message: string | null;
+  listening: number[];
+  binary: string | null;
+  paths: Record<string, string>;
+};
+
+export type NginxSite = { name: string; enabled: boolean; size: number; modified_at: string };
+export type NginxSiteContent = { name: string; enabled: boolean; content: string };
+export type NginxAsset = { path: string; size: number; modified_at: string };
+export type NginxWebroot = { root: string; total_bytes: number; assets: NginxAsset[] };
+export type NginxLog = { name: string; path: string; lines: number; content: string };
+export type NginxResult = { detail: string; status: NginxStatus };
+
+/** Everything below is sudo only, so failures are swallowed rather than retried. */
+export const useNginxStatus = () =>
+  useQuery<NginxStatus>("xenith-nginx", () => fetch("/nginx"), { retry: false });
+
+export const useNginxSites = () =>
+  useQuery<NginxSite[]>("xenith-nginx-sites", () => fetch("/nginx/sites"), { retry: false });
+
+export const useNginxFiles = () =>
+  useQuery<NginxWebroot>("xenith-nginx-files", () => fetch("/nginx/files"), { retry: false });
+
+export const useNginxLog = (name: "access" | "error", lines = 200) =>
+  useQuery<NginxLog>(
+    ["xenith-nginx-log", name, lines],
+    () => fetch(`/nginx/logs/${name}`, { query: { lines } }),
+    { retry: false },
+  );
+
+export const testNginxConfig = () => fetch("/nginx/test", { method: "POST" }) as Promise<NginxResult>;
+export const reloadNginx = () => fetch("/nginx/reload", { method: "POST" }) as Promise<NginxResult>;
+
+export const readNginxSite = (name: string) =>
+  fetch(`/nginx/sites/${encodeURIComponent(name)}`) as Promise<NginxSiteContent>;
+
+export const writeNginxSite = (name: string, content: string) =>
+  fetch(`/nginx/sites/${encodeURIComponent(name)}`, { method: "PUT", body: { content } }) as Promise<NginxResult>;
+
+export const setNginxSiteEnabled = (name: string, enabled: boolean) =>
+  fetch(`/nginx/sites/${encodeURIComponent(name)}/${enabled ? "enable" : "disable"}`, {
+    method: "POST",
+  }) as Promise<NginxResult>;
+
+export const deleteNginxSite = (name: string) =>
+  fetch(`/nginx/sites/${encodeURIComponent(name)}`, { method: "DELETE" }) as Promise<NginxResult>;
+
+export const readNginxFile = (path: string) =>
+  fetch("/nginx/files/content", { query: { path } }) as Promise<{ path: string; content: string }>;
+
+export const writeNginxFile = (path: string, content: string) =>
+  fetch("/nginx/files", { method: "PUT", body: { path, content } }) as Promise<NginxAsset>;
+
+export const deleteNginxFile = (path: string) =>
+  fetch("/nginx/files", { method: "DELETE", query: { path } });
+
+/** Uploads go as multipart, so the body is a FormData rather than JSON. */
+export const uploadNginxFile = (file: File, path?: string) => {
+  const body = new FormData();
+  body.append("file", file);
+  return fetch("/nginx/files/upload", {
+    method: "POST",
+    body,
+    query: path ? { path } : undefined,
+  }) as Promise<NginxAsset>;
+};
+
 export const restartCore = () => fetch("/core/restart", { method: "POST" });
 
 /** Every inbound, flattened out of the by-protocol map the API returns. */

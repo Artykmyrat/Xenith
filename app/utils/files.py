@@ -13,8 +13,11 @@ class FileWriteError(Exception):
     """The file could not be written; the message is safe to show."""
 
 
-def atomic_write(path: str, content: str, mode: int = 0o644) -> None:
+def atomic_write(path: str, content, mode: int = 0o644) -> None:
     """Replace `path` with `content`, atomically.
+
+    Takes either text or bytes; an uploaded font or image has to survive the
+    round trip unchanged, which it does not if it is decoded on the way in.
 
     The temporary file is created in the destination directory so the final
     rename stays within one filesystem, which is what makes it atomic.
@@ -23,9 +26,10 @@ def atomic_write(path: str, content: str, mode: int = 0o644) -> None:
     if not os.path.isdir(directory):
         raise FileWriteError(f"{directory} does not exist.")
 
+    binary = isinstance(content, (bytes, bytearray))
     try:
         handle = tempfile.NamedTemporaryFile(
-            "w", dir=directory, prefix=".xenith-", delete=False
+            "wb" if binary else "w", dir=directory, prefix=".xenith-", delete=False
         )
     except OSError as err:
         raise FileWriteError(f"Could not write to {directory}: {err}")

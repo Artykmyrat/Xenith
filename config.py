@@ -91,6 +91,23 @@ SYSCTL_CONF_PATH = config("SYSCTL_CONF_PATH", default="/etc/sysctl.d/99-xenith.c
 SYSCTL_PROC_PATH = config("SYSCTL_PROC_PATH", default="/proc/sys")
 SYSCTL_TIMEOUT = config("SYSCTL_TIMEOUT", cast=int, default=30)
 
+# nginx, managed from the Nginx screen. Off by default: it edits files under
+# /etc/nginx and signals a process outside the container, which only works when
+# the compose file mounts the config directory and shares the host's PID
+# namespace. See docs/INSTALL.md.
+NGINX_ENABLED = config("NGINX_ENABLED", default=False, cast=bool)
+NGINX_EXECUTABLE_PATH = config("NGINX_EXECUTABLE_PATH", default="nginx")
+NGINX_CONF_DIR = config("NGINX_CONF_DIR", default="/etc/nginx")
+NGINX_SITES_AVAILABLE = config("NGINX_SITES_AVAILABLE", default="/etc/nginx/sites-available")
+NGINX_SITES_ENABLED = config("NGINX_SITES_ENABLED", default="/etc/nginx/sites-enabled")
+# Where uploaded pages land. Everything written through the panel stays inside
+# this directory; a path that resolves outside it is refused.
+NGINX_WEBROOT = config("NGINX_WEBROOT", default="/var/www/html")
+NGINX_LOG_DIR = config("NGINX_LOG_DIR", default="/var/log/nginx")
+NGINX_TIMEOUT = config("NGINX_TIMEOUT", cast=int, default=30)
+# Cap on a single uploaded file. The panel serves static pages, not archives.
+NGINX_MAX_UPLOAD_BYTES = config("NGINX_MAX_UPLOAD_BYTES", cast=int, default=5 * 1024 * 1024)
+
 # Resource limits. The panel always raises its own soft limits to the hard
 # ceiling at startup, which needs no privilege at all. Writing the host's limit
 # files is separate and off by default, because those live under /etc and only

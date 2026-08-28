@@ -52,12 +52,21 @@ services:
     restart: always
     env_file: .env
     network_mode: host
+    # Uncomment to manage the host's nginx from the panel, and set
+    # NGINX_ENABLED=true. `pid: host` is what lets the panel signal the host's
+    # nginx master; it also removes process isolation between the two, so turn
+    # it on deliberately.
+    # pid: host
     ulimits:
       nofile:
         soft: 1048576
         hard: 1048576
     volumes:
       - /var/lib/marzban:/var/lib/marzban
+      # - /etc/nginx:/etc/nginx
+      # - /var/www:/var/www
+      # - /var/log/nginx:/var/log/nginx
+      # - /run:/run
 ```
 
 ```bash

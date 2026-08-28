@@ -273,3 +273,48 @@ panel down with it — so the screen lists what each file still needs.
 
 The ceiling on all of this is `fs.nr_open` (1048576 by default), editable under
 **File descriptors** on the same screen.
+
+
+## nginx
+
+The **Nginx** screen manages the host's nginx: status and `nginx -t`, the files
+in `sites-available`, the pages under the web root, and the tail of both logs.
+
+It is off until the container can reach nginx, which takes three things:
+
+```bash
+sudo bash install.sh --with-nginx --domain panel.example.com
+```
+
+or, on an existing install, `NGINX_ENABLED=true` in `/opt/xenith/.env` plus this
+in `/opt/xenith/docker-compose.yml`:
+
+```yaml
+    pid: host
+    volumes:
+      - /etc/nginx:/etc/nginx
+      - /var/www:/var/www
+      - /var/log/nginx:/var/log/nginx
+      - /run:/run
+```
+
+`pid: host` is the part to think about. It is what lets the panel signal the
+host's nginx master — without it a reload from the panel reaches nothing — and
+it also removes process isolation between the container and the host. On a
+single-purpose VPS where the panel already runs as root that is a small step;
+on a shared machine it is not.
+
+**Editing a site** is checked before it is kept: the panel writes the file, runs
+`nginx -t`, and restores the previous version if nginx rejects it. A save is
+therefore safe, but it is not live — nginx serves the old configuration until
+you press **Reload**, and reload refuses to run while the config is broken.
+
+**Uploading pages** puts files under `/var/www/html`, which is how you put up a
+placeholder or decoy site. Only static types are accepted — no `.php`, no
+scripts — and the destination is validated segment by segment and then resolved
+against the web root, so an upload cannot write outside it.
+
+One caveat: the panel runs the nginx binary from its own image (`nginx-core`).
+If the host runs a build with extra modules, `nginx -t` in the panel can reject
+a directive the host would accept. The config is still written correctly; check
+it with `nginx -t` on the host if the panel disagrees with it.

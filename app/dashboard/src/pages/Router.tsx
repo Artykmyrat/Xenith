@@ -5,6 +5,7 @@ import { Certificates } from "./Certificates";
 import { Inbounds } from "./Inbounds";
 import { Login } from "./Login";
 import { Logs } from "./Logs";
+import { Nginx } from "./Nginx";
 import { Nodes } from "./Nodes";
 import { Overview } from "./Overview";
 import { Settings } from "./Settings";
@@ -30,6 +31,7 @@ export const router = createHashRouter([
       { path: "logs", element: <Logs /> },
       { path: "inbounds", element: <Inbounds /> },
       { path: "certificates", element: <Certificates /> },
+      { path: "nginx", element: <Nginx /> },
       { path: "users", element: <Users /> },
       { path: "settings", element: <Settings /> },
     ],

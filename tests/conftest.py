@@ -41,6 +41,7 @@ from app.db.base import Base  # noqa: E402
 from app.models.admin import AdminCreate, pwd_context  # noqa: E402
 from app.models.user import UserCreate  # noqa: E402
 from app.utils import jwt as jwt_utils  # noqa: E402
+from app.utils import nginx  # noqa: E402
 from app.utils import sysctl  # noqa: E402
 from app.utils.sysctl_catalog import TUNABLES  # noqa: E402
 
@@ -284,3 +285,69 @@ def sysctl_runs(monkeypatch):
 def tunable_host(enabled, proc, conf, sysctl_runs):
     """Everything kernel tuning needs, wired to temporary files."""
     return sysctl_runs
+
+
+@pytest.fixture
+def nginx_host(tmp_path, monkeypatch):
+    """A stand-in /etc/nginx, web root and log directory.
+
+    nginx itself is never installed for the tests; only the files it would read
+    are, so the path handling can be exercised without a server.
+    """
+    tree = {
+        "sites_available": tmp_path / "nginx/sites-available",
+        "sites_enabled": tmp_path / "nginx/sites-enabled",
+        "webroot": tmp_path / "www",
+        "logs": tmp_path / "log/nginx",
+    }
+    for path in tree.values():
+        path.mkdir(parents=True)
+
+    monkeypatch.setattr(nginx, "NGINX_ENABLED", True)
+    monkeypatch.setattr(nginx, "NGINX_CONF_DIR", str(tmp_path / "nginx"))
+    monkeypatch.setattr(nginx, "NGINX_SITES_AVAILABLE", str(tree["sites_available"]))
+    monkeypatch.setattr(nginx, "NGINX_SITES_ENABLED", str(tree["sites_enabled"]))
+    monkeypatch.setattr(nginx, "NGINX_WEBROOT", str(tree["webroot"]))
+    monkeypatch.setattr(nginx, "NGINX_LOG_DIR", str(tree["logs"]))
+    return tree
+
+
+@pytest.fixture
+def nginx_runs(monkeypatch):
+    """Stand in for the nginx binary, recording how it was invoked.
+
+    Returns the call list; assign to `nginx_runs.result` through the returned
+    controller to make a call fail.
+    """
+    class Calls(list):
+        """The argument lists nginx was called with, plus a knob to make it fail.
+
+        `outcome` is per instance on purpose: as a class attribute it would be
+        one dict shared by every test, and a failure set up in one would leak
+        into the next.
+        """
+
+        def __init__(self):
+            super().__init__()
+            self.outcome = {
+                "returncode": 0,
+                "stderr": "nginx: configuration file /etc/nginx/nginx.conf test is successful\n",
+            }
+
+    calls = Calls()
+    outcome = calls.outcome
+
+    def fake_run(args, **kwargs):
+        calls.append(args)
+        if args[1:2] == ["-v"]:
+            return subprocess.CompletedProcess(args, 0, stdout="", stderr="nginx version: nginx/1.24.0\n")
+        if args[1:2] == ["-T"]:
+            return subprocess.CompletedProcess(
+                args, 0, stdout="server {\n listen 80;\n listen 443 ssl;\n}\n", stderr=""
+            )
+        return subprocess.CompletedProcess(
+            args, outcome["returncode"], stdout="", stderr=outcome["stderr"]
+        )
+
+    monkeypatch.setattr(nginx.subprocess, "run", fake_run)
+    return calls

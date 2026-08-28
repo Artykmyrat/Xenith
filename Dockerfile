@@ -41,6 +41,15 @@ FROM python:$PYTHON_VERSION-slim
 ENV PYTHON_LIB_PATH=/usr/local/lib/python${PYTHON_VERSION%.*}/site-packages
 WORKDIR /code
 
+# nginx is here for its binary, not to be run as a service: the panel uses it to
+# check the host's configuration and to signal the host's master process. Keep
+# it to the same package Debian and Ubuntu install by default, so `nginx -t`
+# understands the same directives the host's build does.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends nginx-core \
+    && rm -rf /var/lib/apt/lists/* \
+    && rm -f /etc/nginx/sites-enabled/default
+
 RUN rm -rf $PYTHON_LIB_PATH/*
 
 COPY --from=build $PYTHON_LIB_PATH $PYTHON_LIB_PATH

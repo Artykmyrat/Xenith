@@ -24,6 +24,7 @@ DOMAIN=""
 EMAIL=""
 PANEL_PORT=8000
 WITH_TLS=1
+WITH_NGINX=0
 ASSUME_YES=0
 
 log()   { printf '\033[1;36m==>\033[0m %s\n' "$*"; }
@@ -45,6 +46,10 @@ Usage: install.sh [options]
                       building from this repository.
   --ref <git-ref>     Branch or tag to build from (default: ${REPO_REF}).
   --no-tls            Skip certificate issuance even when --domain is given.
+  --with-nginx        Let the panel manage the host's nginx. Mounts /etc/nginx
+                      and shares the host's PID namespace, which the container
+                      needs to signal nginx but which also removes process
+                      isolation between the two.
   --yes               Do not ask for confirmation.
   --help              Show this message.
 USAGE
@@ -58,6 +63,7 @@ while [[ $# -gt 0 ]]; do
     --pull)   IMAGE_SOURCE=pull; IMAGE="$PULL_IMAGE"; shift ;;
     --ref)    REPO_REF="${2:-}"; shift 2 ;;
     --no-tls) WITH_TLS=0; shift ;;
+    --with-nginx) WITH_NGINX=1; shift ;;
     --yes|-y) ASSUME_YES=1; shift ;;
     --help|-h) usage; exit 0 ;;
     *) die "Unknown option: $1 (try --help)" ;;
@@ -214,6 +220,19 @@ else
 fi
 
 log "Writing $INSTALL_DIR/docker-compose.yml"
+if (( WITH_NGINX )); then
+  # Sharing the host's PID namespace is what lets the panel signal the host's
+  # nginx master; without it a reload from the panel reaches nothing.
+  NGINX_COMPOSE="    pid: host"
+  NGINX_VOLUMES="      - /etc/nginx:/etc/nginx
+      - /var/www:/var/www
+      - /var/log/nginx:/var/log/nginx
+      - /run:/run"
+else
+  NGINX_COMPOSE=""
+  NGINX_VOLUMES=""
+fi
+
 cat > "$INSTALL_DIR/docker-compose.yml" <<COMPOSE
 services:
   xenith:
@@ -221,6 +240,7 @@ services:
     restart: always
     env_file: .env
     network_mode: host
+$NGINX_COMPOSE
     # A proxy holds two descriptors per connection; the Docker default of 1024
     # runs out long before anything else does.
     ulimits:
@@ -230,7 +250,15 @@ services:
     volumes:
       - $DATA_DIR:/var/lib/marzban
       - $LETSENCRYPT_DIR:/etc/letsencrypt
+$NGINX_VOLUMES
 COMPOSE
+
+# Strip the blank lines the empty substitutions leave behind.
+sed -i '/^[[:space:]]*$/d' "$INSTALL_DIR/docker-compose.yml"
+
+if (( WITH_NGINX )); then
+  echo "NGINX_ENABLED = True" >> "$ENV_FILE"
+fi
 
 # ── host command ─────────────────────────────────────────────────────────────
 
