@@ -1,5 +1,6 @@
 import {
   Activity,
+  Cpu,
   Globe,
   LayoutGrid,
   LogIn,
@@ -36,6 +37,7 @@ const PAGE_TITLES: Record<string, { kicker: string; title: string }> = {
   "/logs": { kicker: "xenith.kicker.logs", title: "xenith.page.logs" },
   "/inbounds": { kicker: "xenith.kicker.inbounds", title: "xenith.page.inbounds" },
   "/certificates": { kicker: "xenith.kicker.certificates", title: "xenith.page.certificates" },
+  "/core": { kicker: "xenith.kicker.core", title: "xenith.page.core" },
   "/nginx": { kicker: "xenith.kicker.nginx", title: "xenith.page.nginx" },
   "/users": { kicker: "xenith.kicker.users", title: "xenith.page.users" },
   "/settings": { kicker: "xenith.kicker.settings", title: "xenith.page.settings" },
@@ -87,6 +89,7 @@ export const AppShell: FC = () => {
     { to: "/inbounds", label: t("xenith.nav.inbounds"), icon: LogIn },
     { to: "/users", label: t("xenith.nav.users"), icon: Users, count: system?.total_user },
     { to: "/certificates", label: t("xenith.nav.certificates"), icon: ShieldCheck },
+    { to: "/core", label: t("xenith.nav.core"), icon: Cpu },
     { to: "/nginx", label: t("xenith.nav.nginx"), icon: Globe },
     { to: "/settings", label: t("xenith.nav.settings"), icon: SlidersHorizontal },
   ];

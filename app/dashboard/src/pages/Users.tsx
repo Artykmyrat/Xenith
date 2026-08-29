@@ -3,7 +3,6 @@ import debounce from "lodash.debounce";
 import { Link as LinkIcon, QrCode, RotateCcw, Smartphone, SquarePen, Trash2 } from "lucide-react";
 import { ChangeEvent, FC, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { CoreSettingsModal } from "components/CoreSettingsModal";
 import { DeleteUserModal } from "components/DeleteUserModal";
 import { HostsDialog } from "components/HostsDialog";
 import { NodesDialog } from "components/NodesModal";
@@ -319,7 +318,6 @@ export const Users: FC = () => {
       <NodesDialog />
       <NodesUsage />
       <ResetAllUsageModal />
-      <CoreSettingsModal />
     </>
   );
 };

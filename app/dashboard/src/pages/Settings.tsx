@@ -1,8 +1,7 @@
 import { FC } from "react";
 import { useTranslation } from "react-i18next";
-import { CoreSettingsModal } from "components/CoreSettingsModal";
+import { Link } from "react-router-dom";
 import { NetworkSettings } from "components/NetworkSettings";
-import { useDashboard } from "contexts/DashboardContext";
 import { useAdmin, useCoreStats, useSystemStats } from "xenith/api";
 import { Blueprint } from "xenith/Blueprint";
 import { formatBytes } from "xenith/format";
@@ -35,13 +34,11 @@ export const Settings: FC = () => {
           note={t("xenith.settings.note")}
           trailing={
             admin?.is_sudo && (
-              <button
-                className="xn-btn xn-btn-primary"
-                style={{ fontSize: 12.5 }}
-                onClick={() => useDashboard.setState({ isEditingCore: true })}
-              >
+              // The configuration itself lives on its own screen; this is the
+              // shortcut from the facts about it.
+              <Link className="xn-btn xn-btn-primary" style={{ fontSize: 12.5 }} to="/core">
                 {t("xenith.settings.editCore")}
-              </button>
+              </Link>
             )
           }
         />
@@ -64,8 +61,6 @@ export const Settings: FC = () => {
       {/* Kernel tuning is sudo-only on the API side, so it is not rendered for
           anyone who could only be refused by it. */}
       {admin?.is_sudo && <NetworkSettings />}
-
-      <CoreSettingsModal />
     </>
   );
 };

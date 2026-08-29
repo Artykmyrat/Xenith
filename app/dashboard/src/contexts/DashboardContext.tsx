@@ -53,7 +53,6 @@ type DashboardStateType = {
   resetUsageUser: User | null;
   revokeSubscriptionUser: User | null;
   devicesUser: User | null;
-  isEditingCore: boolean;
   onCreateUser: (isOpen: boolean) => void;
   onEditingUser: (user: User | null) => void;
   onDeletingUser: (user: User | null) => void;
@@ -150,7 +149,6 @@ export const useDashboard = create(
       sort: "-created_at",
     },
     inbounds: new Map(),
-    isEditingCore: false,
     refetchUsers: () => {
       // cancel prev request first
       fetchUsers(get().filters);

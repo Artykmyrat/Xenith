@@ -1,6 +1,7 @@
-import { FC, ReactNode } from "react";
+import { FC, ReactNode, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { Blueprint } from "./Blueprint";
+import { CoreLogLine, LEVEL_COLORS } from "./useCoreLogs";
 
 /** Header row shared by the side panels: title, note, optional trailing slot. */
 export const PanelHead: FC<{ title: string; note?: ReactNode; trailing?: ReactNode }> = ({
@@ -89,6 +90,53 @@ export const PanelEmpty: FC<{ loading?: boolean; children?: ReactNode }> = ({ lo
   return (
     <div style={{ padding: "18px 0", fontSize: 12.5, color: "var(--xn-neutral-600)" }}>
       {loading ? t("xenith.loading") : children || t("xenith.empty")}
+    </div>
+  );
+};
+
+/**
+ * The core log as rows of time, level and message, scrolled to the newest line.
+ * Shared by the Logs screen and the tail under the core configuration so both
+ * read the same way.
+ */
+export const LogLines: FC<{ logs: CoreLogLine[]; maxHeight?: string; empty?: ReactNode }> = ({
+  logs,
+  maxHeight = "62vh",
+  empty,
+}) => {
+  const endRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    endRef.current?.scrollIntoView({ block: "end" });
+  }, [logs.length]);
+
+  if (logs.length === 0) return <PanelEmpty>{empty}</PanelEmpty>;
+
+  return (
+    <div style={{ maxHeight, overflowY: "auto" }}>
+      {logs.map((line) => (
+        <div
+          key={line.id}
+          className="xn-mono"
+          style={{
+            display: "grid",
+            gridTemplateColumns: "74px 92px 1fr",
+            gap: 16,
+            padding: "7px 0",
+            borderTop: "1px solid var(--xn-neutral-200)",
+            fontSize: 12,
+          }}
+        >
+          <span style={{ color: "var(--xn-neutral-500)" }}>{line.time}</span>
+          <span style={{ letterSpacing: "0.06em", color: LEVEL_COLORS[line.level] || "var(--xn-accent-700)" }}>
+            {line.level}
+          </span>
+          <span style={{ color: "var(--xn-neutral-800)", whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
+            {line.text}
+          </span>
+        </div>
+      ))}
+      <div ref={endRef} />
     </div>
   );
 };
