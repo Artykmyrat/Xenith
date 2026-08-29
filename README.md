@@ -5,6 +5,9 @@
 </p>
 
 <p align="center">
+    <a href="https://github.com/Artykmyrat/Xenith/actions/workflows/build.yml"><img src="https://img.shields.io/github/actions/workflow/status/Artykmyrat/Xenith/build.yml?branch=main&style=flat-square&label=build" /></a>
+    <a href="https://github.com/Artykmyrat/Xenith/pkgs/container/xenith"><img src="https://img.shields.io/badge/ghcr.io-xenith-blue?style=flat-square" /></a>
+    <a href="./CHANGELOG.md"><img src="https://img.shields.io/github/v/tag/Artykmyrat/Xenith?style=flat-square&label=version" /></a>
     <a href="./LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-blue?style=flat-square" /></a>
 </p>
 
@@ -151,14 +154,32 @@ installs. A `*` there disables credentialed requests (browsers reject a wildcard
 combined with credentials) and logs a warning at startup — list exact origins
 instead. With `DEBUG=true` the Vite dev server origins are allowed automatically.
 
+### API
+
+The panel is driven entirely through its REST API; the dashboard is one client
+of it. Interactive documentation is generated from the code but is served only
+when `DOCS=true`, which also exposes the OpenAPI schema:
+
+| Path | What it is |
+|---|---|
+| `/docs` | Swagger UI |
+| `/redoc` | ReDoc |
+| `/openapi.json` | The schema itself |
+
+Leave `DOCS` off on a public install. Authenticate with
+`POST /api/admin/token` and send the returned `access_token` as
+`Authorization: Bearer <token>`.
+
 ## Development
 
-Requires Python 3.12 (the version the Docker image is built on) and Node.js.
+Requires Python 3.12 (the version the Docker image is built on), and Node.js
+with pnpm — `corepack enable` sets pnpm up from the version pinned in
+`package.json`.
 
 ```bash
 python3.12 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-cd app/dashboard && npm install && cd ../..
+cd app/dashboard && pnpm install && cd ../..
 ```
 
 Set `DEBUG=true` in `.env` and run `python main.py` — backend and frontend then
@@ -193,6 +214,22 @@ Xenith's own documentation is still being written. Until then, the upstream
 Marzban documentation applies to most features and is mirrored under
 [docs/upstream/](./docs/upstream/). Note that installation instructions there
 refer to Gozargah's install scripts, which Xenith does not use.
+
+## Contributing
+
+Pull requests are welcome. [CONTRIBUTING.md](./CONTRIBUTING.md) covers the
+project layout, how to run the test suite, and the one rule worth knowing up
+front: the database schema stays compatible with Marzban, so existing installs
+can keep migrating.
+
+Released versions are listed in [CHANGELOG.md](./CHANGELOG.md).
+
+## Security
+
+Found a vulnerability? Report it privately through
+[GitHub's advisory form](https://github.com/Artykmyrat/Xenith/security/advisories/new)
+rather than a public issue — [SECURITY.md](./SECURITY.md) says what is in scope
+and which settings decide how exposed an install is.
 
 ## License
 

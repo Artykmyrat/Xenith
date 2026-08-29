@@ -8,7 +8,10 @@ contribution is distributed under that same license.
 
 ## Reporting issues
 
-Include the following in your report:
+Security vulnerabilities do not go here — report those privately, the way
+[SECURITY.md](./SECURITY.md) describes.
+
+For everything else, include the following in your report:
 
 - What you expected to happen and what actually happened.
 - Server logs, or the error shown in the browser.
@@ -19,6 +22,8 @@ Include the following in your report:
 
 Branch off `main`. If there is no open issue covering your change, prefer opening
 one first so the approach can be discussed before you invest time in it.
+
+Note anything a user would notice in `CHANGELOG.md`, under *Unreleased*.
 
 ## Project structure
 
@@ -77,7 +82,7 @@ single-purpose components, and favour readability over brevity.
 
 The frontend is built inside the Docker image, so `app/dashboard/build` is not
 tracked in git — there is nothing to rebuild before committing. For local work,
-run `npm install` in `app/dashboard`, delete the `build` directory and start the
+run `pnpm install` in `app/dashboard`, delete the `build` directory and start the
 backend again.
 
 ## CLI
@@ -92,8 +97,8 @@ PYTHONPATH=$(pwd) typer xenith-cli.py utils docs --name "" --output ./cli/README
 ## Debug mode
 
 Set `DEBUG=true` in `.env` and run `main.py`. Backend and frontend then run
-separately with auto-reload. Install the npm packages first:
+separately with auto-reload. Install the packages first:
 
 ```bash
-cd app/dashboard && npm install && cd ../..
+cd app/dashboard && pnpm install && cd ../..
 ```

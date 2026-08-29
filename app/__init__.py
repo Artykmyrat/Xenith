@@ -12,7 +12,9 @@ from app.utils.cors import cors_policy
 from config import (ALLOWED_ORIGINS, DEBUG, DOCS,
                     JWT_ACCESS_TOKEN_EXPIRE_MINUTES, XRAY_SUBSCRIPTION_PATH)
 
-__version__ = "0.8.4"
+# Xenith's own version. The 0.8.x tags in this repository are Marzban's, from
+# before the fork; everything since is Xenith and is versioned from 0.9.0 on.
+__version__ = "0.9.0"
 
 app = FastAPI(
     title="XenithAPI",

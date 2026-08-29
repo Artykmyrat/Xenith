@@ -87,7 +87,10 @@ xenith image ghcr.io/artykmyrat/xenith:sha-1a2b3c4  # switch to another build
 
 ## Releases
 
-Tag a release when you want a fixed version rather than a moving `latest`:
+Tag a release when you want a fixed version rather than a moving `latest`.
+Before tagging, bump `__version__` in `app/__init__.py` — it is what the
+dashboard and `GET /api/system` report — and move the `Unreleased` entries in
+`CHANGELOG.md` under the new version:
 
 ```bash
 git tag v0.9.0 && git push origin v0.9.0
