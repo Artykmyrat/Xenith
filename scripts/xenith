@@ -34,7 +34,7 @@ Xenith
 
   xenith up               Start the panel
   xenith down             Stop it
-  xenith restart          Restart it (do this after changing .env)
+  xenith restart          Recreate it (do this after changing .env)
   xenith status           Container state
   xenith logs [-f]        Panel logs
   xenith update           Pull or rebuild the image and restart
@@ -53,7 +53,10 @@ command="${1:-}"
 case "$command" in
   up)      compose up -d ;;
   down)    compose down ;;
-  restart) compose restart ;;
+  # `compose restart` reuses the existing container, which keeps the
+  # environment it was created with — .env edits would be ignored. Recreating
+  # is what actually applies them.
+  restart) compose up -d --force-recreate ;;
   status)  compose ps ;;
   logs)    compose logs "${@:---tail=200}" ;;
   cli)     compose exec "$SERVICE" xenith-cli "$@" ;;
