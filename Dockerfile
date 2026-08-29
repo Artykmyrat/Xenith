@@ -74,4 +74,7 @@ RUN ln -s /code/xenith-cli.py /usr/bin/xenith-cli \
     && ln -s /usr/bin/xenith-cli /usr/bin/marzban-cli \
     && xenith-cli completion install --shell bash
 
-CMD ["bash", "-c", "alembic upgrade head; python main.py"]
+# `&&`, not `;`: a migration that fails leaves the database on a schema the
+# panel does not expect, and starting anyway turns that into a stream of
+# query errors instead of one loud failure the restart loop makes visible.
+CMD ["bash", "-c", "alembic upgrade head && python main.py"]

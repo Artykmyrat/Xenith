@@ -213,6 +213,11 @@ WEBHOOK_ADDRESS = config(
     cast=lambda v: [address.strip() for address in v.split(',')] if v else []
 )
 WEBHOOK_SECRET = config("WEBHOOK_SECRET", default=None)
+# How long to wait on one webhook delivery before giving up. The notification
+# job runs on the scheduler, so an address that never answers would hold one of
+# its threads indefinitely and let the queue grow behind it. Not the same thing
+# as RECURRENT_NOTIFICATIONS_TIMEOUT below, which is the delay between retries.
+WEBHOOK_REQUEST_TIMEOUT = config("WEBHOOK_REQUEST_TIMEOUT", cast=int, default=10)
 
 # recurrent notifications
 
@@ -244,6 +249,11 @@ SUB_PROFILE_TITLE = config("SUB_PROFILE_TITLE", default="Subscription")
 
 # discord webhook log
 DISCORD_WEBHOOK_URL = config("DISCORD_WEBHOOK_URL", default="")
+# How long to wait on one Discord delivery before giving up. These are sent
+# from the thread that handled the request which triggered them, so a webhook
+# that accepts the connection and then never answers would otherwise hold that
+# thread for as long as the kernel keeps the socket open.
+DISCORD_WEBHOOK_TIMEOUT = config("DISCORD_WEBHOOK_TIMEOUT", cast=int, default=10)
 
 
 # Interval jobs, all values are in seconds
