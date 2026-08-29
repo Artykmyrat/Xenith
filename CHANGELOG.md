@@ -10,6 +10,12 @@ own history starts at 0.9.0; for anything older, see the upstream changelog.
 
 ## [Unreleased]
 
+### Removed
+
+- The GitHub Actions pipeline (`.github/workflows`). Images are built and
+  deployed by hand: `docker compose build` over the checkout, and
+  `xenith update` on the host.
+
 ## [0.9.0] — unreleased
 
 First release under the Xenith name. The panel was called SkyPanel during

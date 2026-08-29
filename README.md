@@ -8,7 +8,6 @@
 </p>
 
 <p align="center">
-    <a href="https://github.com/bugbusta/Xenith/actions/workflows/build.yml"><img src="https://img.shields.io/github/actions/workflow/status/bugbusta/Xenith/build.yml?branch=main&style=flat-square&label=build" alt="Build status"></a>
     <a href="https://github.com/bugbusta/Xenith/pkgs/container/xenith"><img src="https://img.shields.io/badge/ghcr.io-xenith-blue?style=flat-square" alt="Container image"></a>
     <a href="./CHANGELOG.md"><img src="https://img.shields.io/github/v/tag/bugbusta/Xenith?style=flat-square&label=version" alt="Version"></a>
     <a href="./LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-blue?style=flat-square" alt="License"></a>
@@ -244,15 +243,11 @@ Python is formatted with `autopep8 <file> --max-line-length 120`.
 and the one rule worth knowing up front: the database schema stays compatible
 with Marzban, so existing installs can keep migrating.
 
-Pushing to `main` builds and publishes the image, and can deploy it — see
-[docs/CI.md](./docs/CI.md).
-
 ## Documentation
 
 | | |
 |---|---|
 | [docs/INSTALL.md](./docs/INSTALL.md) | Installing, reverse proxies, upgrades, backups, nginx |
-| [docs/CI.md](./docs/CI.md) | Build pipeline, image tags, deployment, releases |
 | [CONTRIBUTING.md](./CONTRIBUTING.md) | Project layout, tests, how to submit a change |
 | [CHANGELOG.md](./CHANGELOG.md) | What changed in each release |
 | [SECURITY.md](./SECURITY.md) | Reporting a vulnerability, and what is in scope |

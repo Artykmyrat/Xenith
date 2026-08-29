@@ -255,8 +255,8 @@ Point the host at the published image once:
 xenith image ghcr.io/bugbusta/xenith:latest
 ```
 
-From then on every push to `main` in the repository rebuilds that image and
-deploys it here, provided the SSH secrets are set — see [CI.md](./CI.md).
+A later release is picked up on the host with `xenith update`, which pulls the
+new image tag and restarts the panel.
 
 
 ## Open file limits

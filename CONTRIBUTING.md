@@ -71,9 +71,11 @@ a failure the moment the bug is fixed, which is the reminder to delete the mark.
 New tests alongside your change are welcome; the API and the database layer are
 the parts most worth adding to.
 
-CI runs the same suite on every push and pull request, and the Docker image is
-only built and published once it passes. See [docs/CI.md](./docs/CI.md) for the
-pipeline, the image tags and how deployment is wired up.
+Run the suite locally before finishing a change:
+
+```bash
+pytest -q
+```
 
 ## Frontend
 
