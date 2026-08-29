@@ -304,6 +304,12 @@ then `xenith restart`. Nothing else to edit: the wrapper adds
 and that file is what grants `privileged: true` and mounts the host's
 `/etc/sysctl.d`. Commenting the line out and restarting again takes both away.
 
+A refusal is reported per key, not for the whole set: applying a profile that
+touches 89 parameters on a kernel exposing 88 of them applies the 88 and lists
+the one it could not. The usual cause is a module that is not loaded —
+`net.bridge.*` needs `br_netfilter`, `net.netfilter.*` needs `nf_conntrack` —
+and the value stays in the managed file either way.
+
 Privileged is the part to think about. It is what makes `/proc/sys` writable,
 and it also drops the isolation between the container and the host — on a
 single-purpose VPS where the panel already runs as root that is a small step, on

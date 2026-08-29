@@ -263,6 +263,38 @@ class TestApply:
         assert [key for key, _ in result.failed] == ["vm.swappiness", "kernel.sysrq"]
         assert result.applied == {}
 
+    def test_a_key_this_kernel_does_not_expose_is_reported_per_key(self, enabled, proc, conf, monkeypatch):
+        # br_netfilter is not loaded on most hosts until something bridges, and
+        # sysctl names the proc path rather than the key when it is missing.
+        failing_sysctl(
+            monkeypatch,
+            "sysctl: cannot stat /proc/sys/net/bridge/bridge-nf-call-iptables: "
+            "No such file or directory\n",
+        )
+
+        result = sysctl.apply(
+            {"vm.swappiness": "1", "net.bridge.bridge-nf-call-iptables": "0"}
+        )
+
+        assert result.applied == {"vm.swappiness": "1"}
+        assert [key for key, _ in result.failed] == ["net.bridge.bridge-nf-call-iptables"]
+        assert "does not expose" in result.failed[0][1]
+
+    def test_a_missing_key_outside_the_catalogue_still_names_a_key(self, enabled, proc, conf, monkeypatch):
+        failing_sysctl(monkeypatch, "sysctl: cannot stat /proc/sys/net/made/up: No such file\n")
+
+        result = sysctl.apply({"vm.swappiness": "1"})
+
+        assert [key for key, _ in result.failed] == ["net.made.up"]
+
+    def test_permission_denied_names_the_key_it_refused(self, enabled, proc, conf, monkeypatch):
+        failing_sysctl(monkeypatch, 'sysctl: permission denied on key "vm.swappiness"\n')
+
+        result = sysctl.apply({"vm.swappiness": "1"})
+
+        assert result.failed == [("vm.swappiness", "Permission denied.")]
+        assert result.applied == {}
+
     def test_a_failure_with_no_key_named_raises(self, enabled, proc, conf, monkeypatch):
         failing_sysctl(monkeypatch, "sysctl: cannot stat /proc/sys: No such file or directory\n")
 

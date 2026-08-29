@@ -30,8 +30,33 @@ VALUE_PATTERNS = {
     "text": re.compile(r"^[A-Za-z0-9_][A-Za-z0-9_.\-]{0,31}$"),
 }
 
-# "sysctl: setting key "net.core.somaxconn": Read-only file system"
-_FAILURE_RE = re.compile(r'setting key "([^"]+)":\s*(.+)$')
+# How sysctl(8) names the key it could not set. Which shape comes out depends
+# on the procps version and on how the key failed, and a shape that is not
+# matched here costs the whole set: the caller cannot attribute the failure to
+# one key, so it raises for all of them.
+#
+#   sysctl: setting key "net.core.somaxconn": Read-only file system
+#   sysctl: permission denied on key "net.ipv4.ip_forward"
+_FAILURE_RES = (
+    re.compile(r'''setting key ["']([^"']+)["']:\s*(.+)$'''),
+    re.compile(r'''permission denied on key ["']([^"']+)["']'''),
+)
+
+# sysctl: cannot stat /proc/sys/net/bridge/bridge-nf-call-iptables: No such file or directory
+#
+# A key below /proc/sys, rather than /proc/sys itself, which the kernel does
+# not expose. Its own line so it can be reported as the ordinary thing it is.
+_MISSING_RE = re.compile(r"cannot stat /proc/sys/(\S+?):\s*(.+)$")
+
+# The proc path is what sysctl names in that case; the catalogue turns it back
+# into the key an admin recognises.
+_KEY_BY_PROC_PATH = {tunable.proc_path: tunable.key for tunable in TUNABLES}
+
+MISSING_KEY = (
+    "This kernel does not expose the parameter — usually because the module "
+    "providing it is not loaded. It stays in the managed file and takes effect "
+    "if the module appears."
+)
 
 HEADER = (
     "# Managed by Xenith. Edited from the panel's System settings screen;\n"
@@ -158,9 +183,20 @@ def _write_conf(content: str) -> None:
 def _parse_failures(output: str) -> List[Tuple[str, str]]:
     failures = []
     for line in (output or "").splitlines():
-        match = _FAILURE_RE.search(line.strip())
-        if match:
-            failures.append((match.group(1), match.group(2).strip()))
+        line = line.strip()
+
+        missing = _MISSING_RE.search(line)
+        if missing:
+            path = missing.group(1)
+            failures.append((_KEY_BY_PROC_PATH.get(path, path.replace("/", ".")), MISSING_KEY))
+            continue
+
+        for pattern in _FAILURE_RES:
+            match = pattern.search(line)
+            if match:
+                reason = match.group(2).strip() if match.lastindex > 1 else "Permission denied."
+                failures.append((match.group(1), reason))
+                break
     return failures
 
 
