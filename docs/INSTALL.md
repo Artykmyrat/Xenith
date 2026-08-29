@@ -286,6 +286,31 @@ The ceiling on all of this is `fs.nr_open` (1048576 by default), editable under
 **File descriptors** on the same screen.
 
 
+## Kernel tuning
+
+**System settings** reads the kernel parameters the panel manages and, once it
+may write, applies them through `/etc/sysctl.d/99-xenith.conf` so they survive a
+reboot. Reading works everywhere; writing does not, because Docker mounts
+`/proc/sys` read-only and the screen says so until that changes.
+
+Turning it on is one line in `/opt/xenith/.env`:
+
+```
+SYSCTL_ENABLED = True
+```
+
+then `xenith restart`. Nothing else to edit: the wrapper adds
+`docker-compose.sysctl.yml` to every compose command while that setting is on,
+and that file is what grants `privileged: true` and mounts the host's
+`/etc/sysctl.d`. Commenting the line out and restarting again takes both away.
+
+Privileged is the part to think about. It is what makes `/proc/sys` writable,
+and it also drops the isolation between the container and the host — on a
+single-purpose VPS where the panel already runs as root that is a small step, on
+a shared machine it is not. That is why it is not the default, and why it is
+attached to the setting rather than to the main compose file.
+
+
 ## nginx
 
 The **Nginx** screen manages the host's nginx: status and `nginx -t`, the files

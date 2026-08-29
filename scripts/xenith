@@ -15,13 +15,56 @@ set -euo pipefail
 INSTALL_DIR="${XENITH_DIR:-/opt/xenith}"
 WRAPPER_URL="https://raw.githubusercontent.com/bugbusta/Xenith/main/scripts/xenith"
 COMPOSE_FILE="$INSTALL_DIR/docker-compose.yml"
+ENV_FILE="$INSTALL_DIR/.env"
+SYSCTL_FILE="$INSTALL_DIR/docker-compose.sysctl.yml"
 SERVICE=xenith
 
 die() { printf '\033[1;31m error\033[0m %s\n' "$*" >&2; exit 1; }
 
 [[ -f "$COMPOSE_FILE" ]] || die "No installation found at $INSTALL_DIR (set XENITH_DIR to point elsewhere)."
 
-compose() { docker compose -f "$COMPOSE_FILE" "$@"; }
+# Whether a setting in .env is on. Values are read the way the panel reads
+# them, so `True`, `true`, `yes` and `1` all count, quoted or not.
+env_enabled() {
+  local value
+  value="$(sed -n -E "s/^[[:space:]]*$1[[:space:]]*=[[:space:]]*(.*)$/\1/p" "$ENV_FILE" 2>/dev/null | tail -1)"
+  value="${value%%#*}"
+  value="${value//[[:space:]\"\']/}"
+  case "$(printf '%s' "$value" | tr '[:upper:]' '[:lower:]')" in
+    true|yes|y|on|t|1) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+# Writing kernel parameters needs privileges the main compose file withholds.
+# They live in an override file so that turning the feature on stays one line
+# in .env — this recreates the file when an older install has none.
+write_sysctl_file() {
+  cat > "$SYSCTL_FILE" <<'COMPOSE'
+# Written by Xenith. Used automatically while SYSCTL_ENABLED is on in .env,
+# ignored otherwise. The installer and `xenith` both replace this file.
+services:
+  xenith:
+    # Docker mounts /proc/sys read-only, and the System settings screen cannot
+    # change a kernel parameter without writing it.
+    privileged: true
+    volumes:
+      # So a change survives a reboot: the host reads this directory at boot.
+      - /etc/sysctl.d:/etc/sysctl.d
+COMPOSE
+}
+
+# Every subcommand goes through here, so the override is in effect for `down`
+# and `ps` as well as `up` — compose treats a service differently depending on
+# which files defined it, and a mismatch would recreate the container twice.
+compose() {
+  local files=(-f "$COMPOSE_FILE")
+  if env_enabled SYSCTL_ENABLED; then
+    [[ -f "$SYSCTL_FILE" ]] || write_sysctl_file
+    files+=(-f "$SYSCTL_FILE")
+  fi
+  docker compose "${files[@]}" "$@"
+}
 
 # The image the service is actually running. Compared before and after an
 # update so a pull that found nothing new says so instead of looking like it

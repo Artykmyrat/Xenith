@@ -214,6 +214,11 @@ else
     echo "# Login brute-force protection."
     echo "LOGIN_RATE_LIMIT_ATTEMPTS = 5"
     echo "LOGIN_RATE_LIMIT_WINDOW = 300"
+    echo
+    echo "# Kernel tuning from the System settings screen. Uncommenting this is"
+    echo "# the whole procedure: xenith restart then brings the container up"
+    echo "# with the privileges that writing /proc/sys needs."
+    echo "# SYSCTL_ENABLED = True"
   } > "$ENV_FILE"
 
   chmod 600 "$ENV_FILE"
@@ -255,6 +260,23 @@ COMPOSE
 
 # Strip the blank lines the empty substitutions leave behind.
 sed -i '/^[[:space:]]*$/d' "$INSTALL_DIR/docker-compose.yml"
+
+# Kernel tuning needs privileges the main compose file deliberately withholds.
+# Keeping them in an override file is what makes turning the feature on one
+# line in .env: the xenith wrapper adds this file whenever SYSCTL_ENABLED is
+# set, so nobody has to edit compose by hand.
+cat > "$INSTALL_DIR/docker-compose.sysctl.yml" <<'COMPOSE'
+# Written by Xenith. Used automatically while SYSCTL_ENABLED is on in .env,
+# ignored otherwise. The installer and `xenith` both replace this file.
+services:
+  xenith:
+    # Docker mounts /proc/sys read-only, and the System settings screen cannot
+    # change a kernel parameter without writing it.
+    privileged: true
+    volumes:
+      # So a change survives a reboot: the host reads this directory at boot.
+      - /etc/sysctl.d:/etc/sysctl.d
+COMPOSE
 
 # Only once: re-running the installer keeps an existing .env, and appending
 # again would leave the file with a growing stack of the same setting.

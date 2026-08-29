@@ -87,8 +87,9 @@ def writable() -> Tuple[bool, Optional[str]]:
     """
     if not is_enabled():
         return False, (
-            "Kernel tuning is disabled. Set SYSCTL_ENABLED=true, and make sure the panel "
-            "runs with enough privilege to write /proc/sys."
+            "Kernel tuning is disabled. Set SYSCTL_ENABLED = True in the panel's .env "
+            "and run `xenith restart`, which brings the container back with the "
+            "privileges this needs."
         )
 
     if not os.path.isdir(SYSCTL_PROC_PATH):
@@ -97,8 +98,8 @@ def writable() -> Tuple[bool, Optional[str]]:
     probe = os.path.join(SYSCTL_PROC_PATH, "net/ipv4/ip_forward")
     if os.path.exists(probe) and not os.access(probe, os.W_OK):
         return False, (
-            "/proc/sys is mounted read-only. In Docker the container needs privileged mode "
-            "for the panel to change kernel parameters."
+            "/proc/sys is mounted read-only, so the container was started without the "
+            "privileges kernel tuning needs. Run `xenith restart` to recreate it."
         )
 
     directory = os.path.dirname(SYSCTL_CONF_PATH)
