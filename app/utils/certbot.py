@@ -23,7 +23,11 @@ DOMAIN_RE = re.compile(rf"^{LABEL}(\.{LABEL})+$")
 
 # certbot certificates prints a block per lineage; these pull the fields out.
 _NAME_RE = re.compile(r"^\s*Certificate Name:\s*(.+)$")
-_DOMAINS_RE = re.compile(r"^\s*Domains:\s*(.+)$")
+# certbot 5 renamed this line to "Identifiers", the list having grown to cover
+# IP addresses as well as names. Both spellings are in the wild, and a version
+# that prints neither would leave every certificate looking like it covers
+# nothing at all.
+_DOMAINS_RE = re.compile(r"^\s*(?:Domains|Identifiers):\s*(.+)$")
 _EXPIRY_RE = re.compile(r"^\s*Expiry Date:\s*(\S+ \S+)")
 _CERT_PATH_RE = re.compile(r"^\s*Certificate Path:\s*(.+)$")
 _KEY_PATH_RE = re.compile(r"^\s*Private Key Path:\s*(.+)$")

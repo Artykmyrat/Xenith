@@ -145,6 +145,18 @@ class TestTlsTemplate:
         assert settings["network"] == "ws"
         assert settings["path"] == inbound["streamSettings"]["wsSettings"]["path"]
 
+    def test_a_certificate_with_no_domains_listed_falls_back_to_its_name(self, certificates, monkeypatch):
+        nameless = Certificate(
+            name="panel.example.com", domains=[], expires_at=None,
+            certificate_path=certificates.certificate_path,
+            private_key_path=certificates.private_key_path,
+        )
+        monkeypatch.setattr(certbot, "list_certificates", lambda: [nameless])
+
+        inbound = inbound_template.build("tcp", "tls")
+
+        assert inbound["streamSettings"]["tlsSettings"]["serverName"] == "panel.example.com"
+
     def test_a_certificate_without_paths_is_not_offered(self, certificates, monkeypatch):
         unusable = Certificate(
             name="half", domains=["half.example.com"], expires_at=None,

@@ -23,6 +23,11 @@ own history starts at 0.9.0; for anything older, see the upstream changelog.
 
 ### Fixed
 
+- Certificates read from certbot 5 list the names they cover again. That
+  release renamed the `Domains:` line of `certbot certificates` to
+  `Identifiers:`, and the panel, still looking for the old spelling, showed
+  every certificate as covering nothing — which also left TLS inbound
+  templates believing there was no certificate to serve.
 - A parameter the kernel does not expose — `net.bridge.bridge-nf-call-iptables`
   without `br_netfilter`, say — is reported on its own line instead of failing
   the whole set of settings around it.

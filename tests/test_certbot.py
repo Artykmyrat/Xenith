@@ -26,6 +26,19 @@ Found the following certs:
 """
 
 
+# certbot 5 prints the same block with one line renamed.
+CERTBOT_5_OUTPUT = """
+Found the following certs:
+  Certificate Name: panel.example.com
+    Serial Number: 3f7a
+    Key Type: ECDSA
+    Identifiers: panel.example.com sub.example.com
+    Expiry Date: 2026-11-25 10:12:41+00:00 (VALID: 89 days)
+    Certificate Path: /etc/letsencrypt/live/panel.example.com/fullchain.pem
+    Private Key Path: /etc/letsencrypt/live/panel.example.com/privkey.pem
+"""
+
+
 @pytest.fixture(autouse=True)
 def enabled(monkeypatch):
     monkeypatch.setattr(certbot, "CERTBOT_ENABLED", True)
@@ -140,6 +153,14 @@ class TestParsing:
 
     def test_empty_output_yields_nothing(self):
         assert parse_certificates("No certificates found.") == []
+
+    def test_certbot_5_calls_the_domains_identifiers(self):
+        # The rename came with IP support; a certificate parsed from it used to
+        # come out covering nothing, which is how it reached the screen too.
+        certificate = parse_certificates(CERTBOT_5_OUTPUT)[0]
+
+        assert certificate.domains == ["panel.example.com", "sub.example.com"]
+        assert certificate.certificate_path.endswith("fullchain.pem")
 
 
 class TestRunning:

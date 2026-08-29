@@ -78,8 +78,11 @@ def _certificate() -> Tuple[str, str, str]:
         raise TemplateError(str(err))
 
     for certificate in certificates:
-        if certificate.certificate_path and certificate.private_key_path and certificate.domains:
-            return certificate.domains[0], certificate.certificate_path, certificate.private_key_path
+        if certificate.certificate_path and certificate.private_key_path:
+            # A lineage is named after its first domain, which is the one to
+            # fall back on when certbot's output did not list them.
+            domain = certificate.domains[0] if certificate.domains else certificate.name
+            return domain, certificate.certificate_path, certificate.private_key_path
 
     raise TemplateError(
         "No certificate to serve. Issue one on the Certificates screen first, "
