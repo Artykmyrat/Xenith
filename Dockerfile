@@ -45,8 +45,13 @@ WORKDIR /code
 # check the host's configuration and to signal the host's master process. Keep
 # it to the same package Debian and Ubuntu install by default, so `nginx -t`
 # understands the same directives the host's build does.
+#
+# procps is what carries sysctl(8). The slim base does not have it, and without
+# it the System settings screen writes /etc/sysctl.d/99-xenith.conf and then
+# fails to apply it, since SYSCTL_EXECUTABLE_PATH resolves a bare `sysctl`
+# through PATH.
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends nginx-core \
+    && apt-get install -y --no-install-recommends nginx-core procps \
     && rm -rf /var/lib/apt/lists/* \
     && rm -f /etc/nginx/sites-enabled/default
 
