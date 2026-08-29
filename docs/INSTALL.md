@@ -22,7 +22,7 @@ dig +short panel.example.com
 ## Option 1 — the installer
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Artykmyrat/Xenith/main/scripts/install.sh -o install.sh
+curl -fsSL https://raw.githubusercontent.com/bugbusta/Xenith/main/scripts/install.sh -o install.sh
 sudo bash install.sh --domain panel.example.com --email ops@example.com
 ```
 
@@ -64,7 +64,7 @@ mkdir -p /opt/xenith /var/lib/marzban /etc/letsencrypt
 **3. Image**
 
 ```bash
-git clone --depth 1 https://github.com/Artykmyrat/Xenith.git /opt/xenith/src
+git clone --depth 1 https://github.com/bugbusta/Xenith.git /opt/xenith/src
 docker build -t xenith:local /opt/xenith/src
 ```
 
@@ -193,7 +193,7 @@ xenith status                  # container state
 xenith logs -f                 # follow the panel log
 xenith update                  # pull the latest sources, rebuild, restart
 xenith cli admin create --sudo # another sudo admin
-xenith image <ref>             # switch to a published image, e.g. ghcr.io/artykmyrat/xenith:latest
+xenith image <ref>             # switch to a published image, e.g. ghcr.io/bugbusta/xenith:latest
 xenith self-update             # update this wrapper script itself
 xenith certbot certificates    # certbot, inside the container
 xenith env                     # edit .env
@@ -252,7 +252,7 @@ rm -rf /opt/xenith
 Point the host at the published image once:
 
 ```bash
-xenith image ghcr.io/artykmyrat/xenith:latest
+xenith image ghcr.io/bugbusta/xenith:latest
 ```
 
 From then on every push to `main` in the repository rebuilds that image and

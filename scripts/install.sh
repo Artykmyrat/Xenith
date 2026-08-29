@@ -6,7 +6,7 @@
 # with a generated sudo password, optionally obtains a Let's Encrypt certificate
 # so the panel is served over HTTPS, and starts everything under Docker.
 #
-#   curl -fsSL https://raw.githubusercontent.com/Artykmyrat/Xenith/main/scripts/install.sh | bash -s -- --domain panel.example.com --email ops@example.com
+#   curl -fsSL https://raw.githubusercontent.com/bugbusta/Xenith/main/scripts/install.sh | bash -s -- --domain panel.example.com --email ops@example.com
 #
 # Run it again to upgrade: it keeps the existing .env and data.
 
@@ -15,11 +15,11 @@ set -euo pipefail
 INSTALL_DIR=/opt/xenith
 DATA_DIR=/var/lib/marzban
 LETSENCRYPT_DIR=/etc/letsencrypt
-REPO_URL=https://github.com/Artykmyrat/Xenith.git
+REPO_URL=https://github.com/bugbusta/Xenith.git
 REPO_REF=main
 IMAGE=xenith:local
 IMAGE_SOURCE=build          # build | pull
-PULL_IMAGE=ghcr.io/artykmyrat/xenith:latest
+PULL_IMAGE=ghcr.io/bugbusta/xenith:latest
 DOMAIN=""
 EMAIL=""
 PANEL_PORT=8000
@@ -268,7 +268,7 @@ log "Installing the xenith command"
 if [[ -f "$INSTALL_DIR/src/scripts/xenith" ]]; then
   install -m 755 "$INSTALL_DIR/src/scripts/xenith" /usr/local/bin/xenith
 else
-  curl -fsSL "https://raw.githubusercontent.com/Artykmyrat/Xenith/$REPO_REF/scripts/xenith" -o /usr/local/bin/xenith
+  curl -fsSL "https://raw.githubusercontent.com/bugbusta/Xenith/$REPO_REF/scripts/xenith" -o /usr/local/bin/xenith
   chmod 755 /usr/local/bin/xenith
 fi
 

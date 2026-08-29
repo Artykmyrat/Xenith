@@ -93,12 +93,12 @@ development and Marzban before that; see *Upgrading* below.
 
 Data is unchanged: the directory stays `/var/lib/marzban`, the schema and the
 Alembic revisions are Marzban's. Point `docker-compose.yml` at
-`ghcr.io/artykmyrat/xenith:latest` and restart. Back up `/var/lib/marzban` and
+`ghcr.io/bugbusta/xenith:latest` and restart. Back up `/var/lib/marzban` and
 `.env` first.
 
 Everyone signs in once more — sessions are carried in a new cookie. The
 `marzban-cli` and `skypanel-cli` commands, and the `MARZBAN_ADMIN_PASSWORD` and
 `SKYPANEL_ADMIN_PASSWORD` variables, all still work as aliases.
 
-[Unreleased]: https://github.com/Artykmyrat/Xenith/compare/v0.9.0...HEAD
-[0.9.0]: https://github.com/Artykmyrat/Xenith/releases/tag/v0.9.0
+[Unreleased]: https://github.com/bugbusta/Xenith/compare/v0.9.0...HEAD
+[0.9.0]: https://github.com/bugbusta/Xenith/releases/tag/v0.9.0

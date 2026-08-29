@@ -1,6 +1,6 @@
 services:
   xenith:
-    image: ghcr.io/artykmyrat/xenith:latest
+    image: ghcr.io/bugbusta/xenith:latest
     restart: always
     env_file: .env
     network_mode: host

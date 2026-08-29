@@ -5,9 +5,9 @@
 </p>
 
 <p align="center">
-    <a href="https://github.com/Artykmyrat/Xenith/actions/workflows/build.yml"><img src="https://img.shields.io/github/actions/workflow/status/Artykmyrat/Xenith/build.yml?branch=main&style=flat-square&label=build" /></a>
-    <a href="https://github.com/Artykmyrat/Xenith/pkgs/container/xenith"><img src="https://img.shields.io/badge/ghcr.io-xenith-blue?style=flat-square" /></a>
-    <a href="./CHANGELOG.md"><img src="https://img.shields.io/github/v/tag/Artykmyrat/Xenith?style=flat-square&label=version" /></a>
+    <a href="https://github.com/bugbusta/Xenith/actions/workflows/build.yml"><img src="https://img.shields.io/github/actions/workflow/status/bugbusta/Xenith/build.yml?branch=main&style=flat-square&label=build" /></a>
+    <a href="https://github.com/bugbusta/Xenith/pkgs/container/xenith"><img src="https://img.shields.io/badge/ghcr.io-xenith-blue?style=flat-square" /></a>
+    <a href="./CHANGELOG.md"><img src="https://img.shields.io/github/v/tag/bugbusta/Xenith?style=flat-square&label=version" /></a>
     <a href="./LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-blue?style=flat-square" /></a>
 </p>
 
@@ -43,7 +43,7 @@ image and restarting. Back up `/var/lib/marzban` and your `.env` first.
 
 The panel was called SkyPanel until this release. Nothing in your data changes:
 
-- point `docker-compose.yml` at `ghcr.io/artykmyrat/xenith` and restart
+- point `docker-compose.yml` at `ghcr.io/bugbusta/xenith` and restart
 - `skypanel-cli` still works, as an alias of `xenith-cli`
 - `SKYPANEL_ADMIN_PASSWORD` is still read
 - dashboard sessions are signed under a new cookie name, so everyone signs in once more
@@ -53,7 +53,7 @@ The panel was called SkyPanel until this release. Nothing in your data changes:
 ```yaml
 services:
   xenith:
-    image: ghcr.io/artykmyrat/xenith:latest
+    image: ghcr.io/bugbusta/xenith:latest
     restart: always
     env_file: .env
     network_mode: host
@@ -82,7 +82,7 @@ For a fresh server there is an installer that does all of this — Docker, image
 certificate, `.env` and first start — in one go:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Artykmyrat/Xenith/main/scripts/install.sh -o install.sh
+curl -fsSL https://raw.githubusercontent.com/bugbusta/Xenith/main/scripts/install.sh -o install.sh
 sudo bash install.sh --domain panel.example.com --email ops@example.com
 ```
 
@@ -227,7 +227,7 @@ Released versions are listed in [CHANGELOG.md](./CHANGELOG.md).
 ## Security
 
 Found a vulnerability? Report it privately through
-[GitHub's advisory form](https://github.com/Artykmyrat/Xenith/security/advisories/new)
+[GitHub's advisory form](https://github.com/bugbusta/Xenith/security/advisories/new)
 rather than a public issue — [SECURITY.md](./SECURITY.md) says what is in scope
 and which settings decide how exposed an install is.
 

@@ -9,12 +9,13 @@ Three things happen automatically, all defined in `.github/workflows`:
 | `build-dev.yml` | push to `dev` | same, tagged `dev`, no deployment |
 | `deploy.yml` | called by `build.yml`, or manual | pulls the new image on the panel host and restarts it |
 
-The image is published to `ghcr.io/artykmyrat/xenith`, which is what every
+The image is published to `ghcr.io/bugbusta/xenith`, which is what every
 default in this repository points at. It is additionally pushed to
-`artykmyrat/xenith` on Docker Hub, but only when the `DOCKERHUB_USERNAME` and
-`DOCKERHUB_TOKEN` secrets are set; without them that Docker Hub repository
-does not exist, and a `docker compose pull` aimed at it quietly finds nothing
-to update.
+`<DOCKERHUB_USERNAME>/xenith` on Docker Hub, but only when the
+`DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN` secrets are set; without them that
+Docker Hub repository does not exist, and a `docker compose pull` aimed at it
+quietly finds nothing to update. Docker Hub is a separate account from GitHub,
+so the name comes from the secret rather than from the repository owner.
 
 Tags: `latest` and `sha-<short>` from `main`, `dev` from `dev`, and `1.2.3` /
 `1.2` from a `v1.2.3` git tag.
@@ -58,13 +59,13 @@ Then point the server at the published image once — after this every push to
 `main` updates it on its own:
 
 ```bash
-xenith image ghcr.io/artykmyrat/xenith:latest
+xenith image ghcr.io/bugbusta/xenith:latest
 ```
 
 If the package is private, log the host into ghcr.io first:
 
 ```bash
-echo "$GITHUB_TOKEN" | docker login ghcr.io -u Artykmyrat --password-stdin
+echo "$GITHUB_TOKEN" | docker login ghcr.io -u bugbusta --password-stdin
 ```
 
 Make the package public instead under **Packages → xenith → Package settings**
@@ -73,14 +74,14 @@ if you would rather not keep a token on the server.
 ## Deploying by hand
 
 From the **Actions** tab: **Deploy → Run workflow**, optionally with a specific
-image reference (for example `ghcr.io/artykmyrat/xenith:sha-1a2b3c4` to roll
+image reference (for example `ghcr.io/bugbusta/xenith:sha-1a2b3c4` to roll
 back to an earlier commit).
 
 From the server:
 
 ```bash
 xenith update                                     # pull the current tag, restart
-xenith image ghcr.io/artykmyrat/xenith:sha-1a2b3c4  # switch to another build
+xenith image ghcr.io/bugbusta/xenith:sha-1a2b3c4  # switch to another build
 ```
 
 `xenith image` keeps the previous compose file as `docker-compose.yml.bak`.

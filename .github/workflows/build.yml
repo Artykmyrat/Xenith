@@ -59,8 +59,8 @@ jobs:
         run: |
           {
             echo "images<<EOF"
-            if [ -n "$DOCKERHUB_USERNAME" ]; then echo "artykmyrat/xenith"; fi
-            echo "ghcr.io/artykmyrat/xenith"
+            if [ -n "$DOCKERHUB_USERNAME" ]; then echo "$DOCKERHUB_USERNAME/xenith"; fi
+            echo "ghcr.io/bugbusta/xenith"
             echo "EOF"
           } >> "$GITHUB_OUTPUT"
 

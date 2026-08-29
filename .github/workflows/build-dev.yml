@@ -51,6 +51,6 @@ jobs:
           context: .
           platforms: linux/amd64,linux/arm64
           push: true
-          tags: ghcr.io/artykmyrat/xenith:dev
+          tags: ghcr.io/bugbusta/xenith:dev
           cache-from: type=gha
           cache-to: type=gha,mode=max

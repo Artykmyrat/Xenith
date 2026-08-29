@@ -2,7 +2,7 @@
 
 SERVICE_NAME="xenith"
 SERVICE_DESCRIPTION="Xenith Service"
-SERVICE_DOCUMENTATION="https://github.com/Artykmyrat/Xenith"
+SERVICE_DOCUMENTATION="https://github.com/bugbusta/Xenith"
 MAIN_PY_PATH="$PWD/main.py"
 SERVICE_FILE="/etc/systemd/system/$SERVICE_NAME.service"
 

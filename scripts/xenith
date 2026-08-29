@@ -13,7 +13,7 @@
 set -euo pipefail
 
 INSTALL_DIR="${XENITH_DIR:-/opt/xenith}"
-WRAPPER_URL="https://raw.githubusercontent.com/Artykmyrat/Xenith/main/scripts/xenith"
+WRAPPER_URL="https://raw.githubusercontent.com/bugbusta/Xenith/main/scripts/xenith"
 COMPOSE_FILE="$INSTALL_DIR/docker-compose.yml"
 SERVICE=xenith
 
@@ -81,7 +81,7 @@ case "$command" in
     fi
     ;;
   image)
-    [[ $# -ge 1 ]] || die "Usage: xenith image ghcr.io/artykmyrat/xenith:latest"
+    [[ $# -ge 1 ]] || die "Usage: xenith image ghcr.io/bugbusta/xenith:latest"
     new_image="$1"
     # Rewrite the image line in place, keeping a copy of the previous file.
     cp "$COMPOSE_FILE" "$COMPOSE_FILE.bak"

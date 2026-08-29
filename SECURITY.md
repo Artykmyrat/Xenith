@@ -8,7 +8,7 @@ certbot and sysctl. A flaw here is worth reporting carefully.
 
 **Do not open a public issue.** Use GitHub's private vulnerability reporting:
 
-1. Go to the [Security tab](https://github.com/Artykmyrat/Xenith/security).
+1. Go to the [Security tab](https://github.com/bugbusta/Xenith/security).
 2. Click **Report a vulnerability**.
 
 That opens a private thread visible only to the maintainers. If you cannot use

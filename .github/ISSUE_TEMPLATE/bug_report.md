@@ -8,7 +8,7 @@ assignees: ''
 ---
 
 **Do not report security vulnerabilities here.** See
-[SECURITY.md](https://github.com/Artykmyrat/Xenith/blob/main/SECURITY.md) for the private reporting flow.
+[SECURITY.md](https://github.com/bugbusta/Xenith/blob/main/SECURITY.md) for the private reporting flow.
 
 ### What happened
 

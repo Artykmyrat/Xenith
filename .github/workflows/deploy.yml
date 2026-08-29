@@ -12,7 +12,7 @@ on:
       image:
         description: "Image reference to deploy"
         required: false
-        default: "ghcr.io/artykmyrat/xenith:latest"
+        default: "ghcr.io/bugbusta/xenith:latest"
 
 concurrency:
   group: deploy-production
@@ -43,6 +43,6 @@ jobs:
           script_stop: true
           script: |
             set -e
-            IMAGE="${{ inputs.image || 'ghcr.io/artykmyrat/xenith:latest' }}"
+            IMAGE="${{ inputs.image || 'ghcr.io/bugbusta/xenith:latest' }}"
             xenith image "$IMAGE"
             xenith status
