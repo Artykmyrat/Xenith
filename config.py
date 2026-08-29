@@ -190,6 +190,16 @@ ONHOLD_STATUS_TEXT = config("ONHOLD_STATUS_TEXT", default="On-Hold")
 USERS_AUTODELETE_DAYS = config("USERS_AUTODELETE_DAYS", default=-1, cast=int)
 USER_AUTODELETE_INCLUDE_LIMITED_ACCOUNTS = config("USER_AUTODELETE_INCLUDE_LIMITED_ACCOUNTS", default=False, cast=bool)
 
+# How many devices may fetch one user's subscription, counted by the hardware
+# id their client reports. Off by default, and deliberately so: with a limit
+# in force a client that sends no identifier at all is refused, and that is
+# most of them — a browser opening the subscription page included. A user's
+# own hwid_device_limit overrides this, and is NULL until somebody sets one.
+USERS_DEFAULT_HWID_DEVICE_LIMIT = config("USERS_DEFAULT_HWID_DEVICE_LIMIT", default=0, cast=int)
+# The header the identifier arrives in. Configurable because it is a client
+# convention rather than a standard, and conventions move.
+HWID_HEADER = config("HWID_HEADER", default="x-hwid")
+
 
 # USERNAME: PASSWORD
 SUDOERS = {config("SUDO_USERNAME"): config("SUDO_PASSWORD")} \

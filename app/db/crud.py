@@ -7,6 +7,7 @@ from enum import Enum
 from typing import Dict, List, Optional, Tuple, Union
 
 from sqlalchemy import and_, delete, func, or_
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Query, Session, joinedload
 from sqlalchemy.sql.functions import coalesce
 
@@ -27,6 +28,7 @@ from app.db.models import (
     ProxyTypes,
     System,
     User,
+    UserDevice,
     UserTemplate,
     UserUsageResetLogs,
 )
@@ -392,6 +394,7 @@ def create_user(db: Session, user: UserCreate, admin: Admin = None) -> User:
         on_hold_expire_duration=(user.on_hold_expire_duration or None),
         on_hold_timeout=(user.on_hold_timeout or None),
         auto_delete_in_days=user.auto_delete_in_days,
+        hwid_device_limit=user.hwid_device_limit,
         next_plan=NextPlan(
             data_limit=user.next_plan.data_limit,
             expire=user.next_plan.expire,
@@ -517,6 +520,12 @@ def update_user(db: Session, dbuser: User, modify: UserModify) -> User:
     if modify.on_hold_expire_duration is not None:
         dbuser.on_hold_expire_duration = modify.on_hold_expire_duration
 
+    # Zero is meaningful here — it turns the limit off for this user whatever
+    # the global setting is — so `is not None` rather than a truth test, the
+    # way every other optional field on this model is handled.
+    if modify.hwid_device_limit is not None:
+        dbuser.hwid_device_limit = modify.hwid_device_limit
+
     if modify.next_plan is not None:
         dbuser.next_plan = NextPlan(
             data_limit=modify.next_plan.data_limit,
@@ -626,6 +635,107 @@ def revoke_user_sub(db: Session, dbuser: User) -> User:
     db.commit()
     db.refresh(dbuser)
     return dbuser
+
+
+def get_user_devices(db: Session, dbuser: User) -> List[UserDevice]:
+    """The devices known for a user, most recently seen first."""
+    return (
+        db.query(UserDevice)
+        .filter(UserDevice.user_id == dbuser.id)
+        .order_by(UserDevice.last_seen_at.desc(), UserDevice.id.desc())
+        .all()
+    )
+
+
+def get_user_device(db: Session, dbuser: User, device_id: int) -> Optional[UserDevice]:
+    """One device, but only if it belongs to this user.
+
+    Scoped to the user rather than looked up by id alone, so an admin who may
+    only see their own users cannot reach another admin's device by guessing
+    a number.
+    """
+    return (
+        db.query(UserDevice)
+        .filter(and_(UserDevice.id == device_id, UserDevice.user_id == dbuser.id))
+        .one_or_none()
+    )
+
+
+def count_user_devices(db: Session, dbuser: User) -> int:
+    return db.query(func.count(UserDevice.id)).filter(UserDevice.user_id == dbuser.id).scalar() or 0
+
+
+def touch_user_device(db: Session, dbuser: User, identity, user_agent: str = "") -> UserDevice:
+    """Record that a known device was seen again.
+
+    Returns None when the device is not one of this user's.
+    """
+    device = (
+        db.query(UserDevice)
+        .filter(and_(UserDevice.user_id == dbuser.id, UserDevice.hwid == identity.hwid))
+        .one_or_none()
+    )
+    if device is None:
+        return None
+
+    device.last_seen_at = datetime.utcnow()
+    device.user_agent = user_agent or device.user_agent
+    # What the client reports can change under it — an OS upgrade, a new
+    # build — and the newer answer is the more useful one to show.
+    device.os = identity.os or device.os
+    device.os_version = identity.os_version or device.os_version
+    device.model = identity.model or device.model
+    db.commit()
+    db.refresh(device)
+    return device
+
+
+def add_user_device(db: Session, dbuser: User, identity, user_agent: str = "") -> UserDevice:
+    """Register a device against a user.
+
+    Two requests from one new device can arrive at once, both find no row and
+    both try to write one; the unique constraint settles it and the loser
+    reads back the winner's row rather than failing. Without that, a device
+    could be counted twice and eat two slots of its own limit.
+    """
+    device = UserDevice(
+        user_id=dbuser.id,
+        hwid=identity.hwid,
+        os=identity.os,
+        os_version=identity.os_version,
+        model=identity.model,
+        user_agent=user_agent or None,
+    )
+    db.add(device)
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        return touch_user_device(db, dbuser, identity, user_agent)
+
+    db.refresh(device)
+    return device
+
+
+def remove_user_device(db: Session, device: UserDevice) -> None:
+    db.delete(device)
+    db.commit()
+
+
+def reset_user_devices(db: Session, dbuser: User) -> int:
+    """Forget every device for a user, returning how many were removed.
+
+    The user keeps working: the devices re-register themselves on their next
+    fetch, up to the limit. This is the way back for somebody who really did
+    change phones more often than their limit allows.
+    """
+    removed = (
+        db.query(UserDevice)
+        .filter(UserDevice.user_id == dbuser.id)
+        .delete(synchronize_session=False)
+    )
+    db.commit()
+    return removed
 
 
 def update_user_sub(db: Session, dbuser: User, user_agent: str) -> User:

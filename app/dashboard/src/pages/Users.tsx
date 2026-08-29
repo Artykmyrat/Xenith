@@ -1,6 +1,6 @@
 import dayjs from "dayjs";
 import debounce from "lodash.debounce";
-import { Link as LinkIcon, QrCode, RotateCcw, SquarePen, Trash2 } from "lucide-react";
+import { Link as LinkIcon, QrCode, RotateCcw, Smartphone, SquarePen, Trash2 } from "lucide-react";
 import { ChangeEvent, FC, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { CoreSettingsModal } from "components/CoreSettingsModal";
@@ -11,6 +11,7 @@ import { NodesUsage } from "components/NodesUsage";
 import { QRCodeDialog } from "components/QRCodeDialog";
 import { ResetAllUsageModal } from "components/ResetAllUsageModal";
 import { ResetUserUsageModal } from "components/ResetUserUsageModal";
+import { UserDevicesModal } from "components/UserDevicesModal";
 import { RevokeSubscriptionModal } from "components/RevokeSubscriptionModal";
 import { UserDialog } from "components/UserDialog";
 import { fetchInbounds, FilterType, useDashboard } from "contexts/DashboardContext";
@@ -248,6 +249,13 @@ export const Users: FC = () => {
                           </button>
                           <button
                             className="xn-btn xn-btn-ghost"
+                            title={t("xenith.devices.title", { username: user.username }) as string}
+                            onClick={() => useDashboard.setState({ devicesUser: user })}
+                          >
+                            <Smartphone size={15} strokeWidth={1.5} />
+                          </button>
+                          <button
+                            className="xn-btn xn-btn-ghost"
                             title={t("resetUserUsage.title") as string}
                             onClick={() => useDashboard.setState({ resetUsageUser: user })}
                           >
@@ -307,6 +315,7 @@ export const Users: FC = () => {
       <HostsDialog />
       <ResetUserUsageModal />
       <RevokeSubscriptionModal />
+      <UserDevicesModal />
       <NodesDialog />
       <NodesUsage />
       <ResetAllUsageModal />

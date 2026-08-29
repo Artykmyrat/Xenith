@@ -28,6 +28,16 @@
       ],
       "port": 8001,
       "url": "http://localhost:8001"
+    },
+    {
+      "name": "hwid-demo",
+      "runtimeExecutable": "bash",
+      "runtimeArgs": [
+        "-c",
+        "UVICORN_PORT=8002 DEBUG=false SQLALCHEMY_DATABASE_URL=sqlite:////private/tmp/claude-501/-Users-user-Desktop-Marzban/9e842ede-3993-44e5-830b-32a8590e6c70/scratchpad/demo.sqlite3 .venv/bin/python main.py"
+      ],
+      "port": 8002,
+      "url": "http://localhost:8002"
     }
   ]
 }

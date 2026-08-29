@@ -104,6 +104,7 @@ const getDefaultValues = (): FormType => {
     status: "active",
     on_hold_expire_duration: null,
     note: "",
+    hwid_device_limit: null,
     inbounds,
     proxies: {
       vless: { id: "", flow: "" },
@@ -154,6 +155,14 @@ const baseSchema = {
       return 0;
     }),
   expire: z.number().nullable(),
+  hwid_device_limit: z
+    .union([z.string(), z.number()])
+    .nullable()
+    .transform((value) => {
+      if (value === "" || value === null || value === undefined) return null;
+      const parsed = Number(value);
+      return Number.isFinite(parsed) ? Math.trunc(parsed) : null;
+    }),
   data_limit_reset_strategy: z.string(),
   inbounds: z.record(z.string(), z.array(z.string())).transform((ins) => {
     Object.keys(ins).forEach((protocol) => {
@@ -609,6 +618,21 @@ export const UserDialog: FC<UserDialogProps> = () => {
                             }}
                           />
                         )}
+                      </FormControl>
+
+                      <FormControl mb={"10px"} isInvalid={!!form.formState.errors.hwid_device_limit}>
+                        <FormLabel>{t("userDialog.deviceLimit")}</FormLabel>
+                        <Input
+                          size="sm"
+                          type="number"
+                          min={0}
+                          borderRadius="6px"
+                          placeholder={t("userDialog.deviceLimitPlaceholder") as string}
+                          disabled={disabled}
+                          {...form.register("hwid_device_limit")}
+                        />
+                        <FormHelperText>{t("userDialog.deviceLimitHelp")}</FormHelperText>
+                        <FormErrorMessage>{form.formState.errors?.hwid_device_limit?.message}</FormErrorMessage>
                       </FormControl>
 
                       <FormControl mb={"10px"} isInvalid={!!form.formState.errors.note}>

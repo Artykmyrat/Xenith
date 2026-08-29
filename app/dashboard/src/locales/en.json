@@ -483,5 +483,27 @@
   "xenith.users.status.expired": "Expired",
   "xenith.users.status.limited": "Limited",
   "xenith.users.status.on_hold": "On hold",
-  "xenith.working": "Working…"
+  "xenith.working": "Working…",
+  "userDialog": {
+    "deviceLimit": "Device limit",
+    "deviceLimitPlaceholder": "Panel default",
+    "deviceLimitHelp": "Devices allowed to fetch this subscription. Leave empty for the panel default, 0 for no limit. With a limit in force, a client that does not report a device id is refused."
+  },
+  "xenith": {
+    "devices": {
+      "title": "Devices of {{username}}",
+      "limited": "{{total}} of {{limit}} device(s) used.",
+      "unlimited": "No device limit is in force for this user.",
+      "caveat": "Forgetting a device frees its slot. It does not cut the device off: it keeps the configuration it already downloaded until the subscription is revoked.",
+      "device": "Device",
+      "hwid": "Hardware ID",
+      "lastSeen": "Last seen",
+      "forget": "Forget",
+      "forgetAll": "Forget all",
+      "removed": "Device forgotten.",
+      "resetDone": "All devices forgotten.",
+      "empty": "No device has fetched this subscription yet.",
+      "error": "Could not reach the device list."
+    }
+  }
 }

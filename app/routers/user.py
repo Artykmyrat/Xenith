@@ -11,13 +11,14 @@ from app.models.admin import Admin
 from app.models.user import (
     UserCreate,
     UserModify,
+    UserDevicesResponse,
     UserResponse,
     UsersResponse,
     UserStatus,
     UsersUsagesResponse,
     UserUsagesResponse,
 )
-from app.utils import report, responses
+from app.utils import hwid, report, responses
 from config import SUDOERS
 
 router = APIRouter(tags=["User"], prefix="/api", responses={401: responses._401})
@@ -281,6 +282,79 @@ def get_user_usage(
     usages = crud.get_user_usages(db, dbuser, start, end)
 
     return {"usages": usages, "username": dbuser.username}
+
+
+def _devices_response(db: Session, dbuser) -> dict:
+    """A user's devices plus the limit they are counted against.
+
+    The limit is resolved rather than echoed back: the column is null for
+    anyone who has never been given one of their own, and a caller should not
+    have to know about the panel default to make sense of that.
+    """
+    devices = crud.get_user_devices(db, dbuser)
+    return {
+        "devices": devices,
+        "total": len(devices),
+        "limit": hwid.effective_limit(dbuser),
+        "enforced": hwid.is_enforced(dbuser),
+    }
+
+
+@router.get(
+    "/user/{username}/devices",
+    response_model=UserDevicesResponse,
+    responses={403: responses._403, 404: responses._404},
+)
+def get_user_devices(
+    dbuser: UserResponse = Depends(get_validated_user),
+    db: Session = Depends(get_db),
+):
+    """List the devices that have fetched this user's subscription."""
+    return _devices_response(db, dbuser)
+
+
+@router.delete(
+    "/user/{username}/devices/{device_id}",
+    response_model=UserDevicesResponse,
+    responses={403: responses._403, 404: responses._404},
+)
+def remove_user_device(
+    device_id: int,
+    dbuser: UserResponse = Depends(get_validated_user),
+    db: Session = Depends(get_db),
+    admin: Admin = Depends(Admin.get_current),
+):
+    """Forget one device, freeing its slot.
+
+    The device is not cut off: it keeps whatever configuration it already
+    downloaded until the subscription is revoked. What this frees is the
+    right to fetch a new one.
+    """
+    device = crud.get_user_device(db, dbuser, device_id)
+    if not device:
+        raise HTTPException(status_code=404, detail="Device not found")
+
+    crud.remove_user_device(db, device)
+    logger.info(f'Device {device_id} removed from user "{dbuser.username}"')
+
+    return _devices_response(db, dbuser)
+
+
+@router.delete(
+    "/user/{username}/devices",
+    response_model=UserDevicesResponse,
+    responses={403: responses._403, 404: responses._404},
+)
+def reset_user_devices(
+    dbuser: UserResponse = Depends(get_validated_user),
+    db: Session = Depends(get_db),
+    admin: Admin = Depends(Admin.get_current),
+):
+    """Forget every device, letting the next ones to ask take the slots."""
+    removed = crud.reset_user_devices(db, dbuser)
+    logger.info(f'{removed} device(s) removed from user "{dbuser.username}"')
+
+    return _devices_response(db, dbuser)
 
 
 @router.post("/user/{username}/active-next", response_model=UserResponse, responses={403: responses._403, 404: responses._404})

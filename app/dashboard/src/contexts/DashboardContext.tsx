@@ -1,7 +1,7 @@
 import { router } from "@/pages/Router";
 import debounce from "lodash.debounce";
 import { fetch } from "service/http";
-import { User, UserCreate } from "types/User";
+import { User, UserCreate, UserDevices } from "types/User";
 import { queryClient } from "utils/react-query";
 import { getUsersPerPageLimitSize } from "utils/userPreferenceStorage";
 import { create } from "zustand";
@@ -52,6 +52,7 @@ type DashboardStateType = {
   isResetingAllUsage: boolean;
   resetUsageUser: User | null;
   revokeSubscriptionUser: User | null;
+  devicesUser: User | null;
   isEditingCore: boolean;
   onCreateUser: (isOpen: boolean) => void;
   onEditingUser: (user: User | null) => void;
@@ -71,6 +72,9 @@ type DashboardStateType = {
   onShowingNodesUsage: (isShowingNodesUsage: boolean) => void;
   resetDataUsage: (user: User) => Promise<void>;
   revokeSubscription: (user: User) => Promise<void>;
+  fetchUserDevices: (user: User) => Promise<UserDevices>;
+  removeUserDevice: (user: User, deviceId: number) => Promise<UserDevices>;
+  resetUserDevices: (user: User) => Promise<UserDevices>;
 };
 
 const fetchUsers = (query: FilterType): Promise<User[]> => {
@@ -139,6 +143,7 @@ export const useDashboard = create(
     isShowingNodesUsage: false,
     resetUsageUser: null,
     revokeSubscriptionUser: null,
+    devicesUser: null,
     filters: {
       username: "",
       limit: getUsersPerPageLimitSize(),
@@ -230,6 +235,18 @@ export const useDashboard = create(
         set({ revokeSubscriptionUser: null, editingUser: user });
         get().refetchUsers();
       });
+    },
+    // The three below all answer with the whole device list, so the modal
+    // renders what the server has rather than guessing at the result of a
+    // delete it just made.
+    fetchUserDevices: (user) => {
+      return fetch(`/user/${user.username}/devices`);
+    },
+    removeUserDevice: (user, deviceId) => {
+      return fetch(`/user/${user.username}/devices/${deviceId}`, { method: "DELETE" });
+    },
+    resetUserDevices: (user) => {
+      return fetch(`/user/${user.username}/devices`, { method: "DELETE" });
     },
   })),
 );
