@@ -146,8 +146,11 @@ TRUSTED_PROXIES = '127.0.0.1,::1'
 ```
 
 Without it the panel ignores `X-Forwarded-For` and `X-Forwarded-Proto`, so every
-login is logged as coming from the proxy and rate limiting counts all clients as
-one. With it, only that address is believed — nobody else can forge the header.
+login is logged as coming from the proxy and every client shares one address for
+rate limiting. Failed logins are counted per address *and* account, so that does
+not lock the whole panel out — but anyone can then get a single admin account
+rate limited by guessing at its password. With it, only that address is believed
+— nobody else can forge the header.
 
 Proxy `/dashboard/`, `/api/`, `/sub/` (or whatever `XRAY_SUBSCRIPTION_PATH` is)
 and `/statics/`, and pass WebSocket upgrade headers so the live core log works.
@@ -163,6 +166,14 @@ and `/statics/`, and pass WebSocket upgrade headers so the live core log works.
 4. **Certificates** — the Certificates screen issues and renews certificates
    through certbot. Standalone validation needs port 80 free for a moment;
    webroot validation needs a directory your web server already serves.
+5. **Old subscription links** — if you migrated from Marzban or an early
+   SkyPanel, links issued back then are still honoured, because
+   `ACCEPT_LEGACY_SUBSCRIPTION_TOKENS` defaults to `True`. They are signed with
+   a 60-bit truncated hash instead of an HMAC, so treat that as a migration
+   window: hand your users the link their row shows now, watch the log for the
+   once-per-restart warning that says somebody is still on an old one, and set
+   the variable to `false` when it stops appearing. Turning it off invalidates
+   every pre-change link immediately.
 
 Certificates issued for the panel itself are picked up on restart:
 
@@ -223,7 +234,7 @@ either from the Certificates screen or with a cron entry on the host:
 | Panel unreachable from outside | No certificate configured, so it binds to localhost. Issue one, or tunnel: `ssh -L 8000:localhost:8000 root@server` |
 | `Address already in use` on port 80 during issuance | Another web server holds it. Stop it, or use webroot validation |
 | Certificate issuance fails with NXDOMAIN | The domain does not resolve to this server yet |
-| `429 Too Many Requests` on login | Brute-force protection. Wait out `LOGIN_RATE_LIMIT_WINDOW`, or raise the limit in `.env` |
+| `429 Too Many Requests` on login | Brute-force protection, counted per address and account. Wait out `LOGIN_RATE_LIMIT_WINDOW`, or raise the limit in `.env`. If it keeps happening on a panel behind a proxy, set `TRUSTED_PROXIES` — the panel logs a warning about this when it blocks a login coming from its own network |
 | Every login shows the same IP | Set `TRUSTED_PROXIES` to your reverse proxy's address |
 | Core state shows `Stopped` | Xray failed to start — check `docker compose logs` and the core config |
 

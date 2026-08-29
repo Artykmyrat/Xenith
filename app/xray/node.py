@@ -35,6 +35,12 @@ class SANIgnoringAdaptor(HTTPAdapter):
                                        assert_hostname=False)
 
 
+# Fetching a node's certificate is a plain TLS handshake with no timeout of its
+# own: a node that accepts the connection and then says nothing would otherwise
+# hold the calling thread for as long as the kernel allows.
+CERTIFICATE_FETCH_TIMEOUT = 15
+
+
 def certificate_fingerprint(pem: str) -> str:
     """SHA-256 fingerprint of a PEM encoded certificate."""
     return sha256(ssl.PEM_cert_to_DER_cert(pem)).hexdigest()
@@ -191,7 +197,9 @@ class ReSTXRayNode:
         return self._node_cert
 
     def connect(self):
-        presented = ssl.get_server_certificate((self.address, self.port))
+        presented = ssl.get_server_certificate(
+            (self.address, self.port), timeout=CERTIFICATE_FETCH_TIMEOUT
+        )
 
         if self._node_cert is None:
             # Trust on first use: nodes generate their own certificate, so the
@@ -400,7 +408,9 @@ class RPyCXRayNode:
     def connect(self):
         self.disconnect()
 
-        presented = ssl.get_server_certificate((self.address, self.port))
+        presented = ssl.get_server_certificate(
+            (self.address, self.port), timeout=CERTIFICATE_FETCH_TIMEOUT
+        )
         if self._node_cert is None:
             # Trust on first use; see ReSTXRayNode.connect.
             self._pin_certificate(presented)

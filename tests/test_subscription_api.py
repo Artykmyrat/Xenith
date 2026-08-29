@@ -141,6 +141,11 @@ class TestClientDetection:
     def test_an_unknown_format_is_refused(self, client, token):
         assert client.get(f"/sub/{token}/nonsense").status_code == 422
 
+    @pytest.mark.parametrize("client_type", ["xclash", "clashx", "xv2rayx"])
+    def test_a_format_merely_containing_a_known_name_is_refused(self, client, token, client_type):
+        """An unanchored pattern accepts these, and the lookup behind it then fails with a 500."""
+        assert client.get(f"/sub/{token}/{client_type}").status_code == 422
+
 
 class TestResponseHeaders:
     def test_the_client_is_told_how_often_to_refresh(self, client, token):

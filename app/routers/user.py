@@ -22,6 +22,14 @@ from config import SUDOERS
 
 router = APIRouter(tags=["User"], prefix="/api", responses={401: responses._401})
 
+# One page of users. The dashboard sends a size of its own, so these are for
+# API clients that send none: that used to mean every user on the panel, each
+# with their proxies and inbounds joined in, which is enough to stall the
+# single worker on a large installation. `total` in the response is what a
+# client pages against.
+USERS_DEFAULT_LIMIT = 100
+USERS_MAX_LIMIT = 1000
+
 
 @router.post("/user", response_model=UserResponse, responses={400: responses._400, 409: responses._409})
 def add_user(
@@ -204,8 +212,8 @@ def revoke_user_subscription(
 
 @router.get("/users", response_model=UsersResponse, responses={400: responses._400, 403: responses._403, 404: responses._404})
 def get_users(
-    offset: int = None,
-    limit: int = None,
+    offset: int = Query(0, ge=0),
+    limit: int = Query(USERS_DEFAULT_LIMIT, ge=1, le=USERS_MAX_LIMIT),
     username: List[str] = Query(None),
     search: Union[str, None] = None,
     owner: Union[List[str], None] = Query(None, alias="admin"),
@@ -214,7 +222,11 @@ def get_users(
     db: Session = Depends(get_db),
     admin: Admin = Depends(Admin.get_current),
 ):
-    """Get all users"""
+    """Get a page of users: 100 per page by default, 1000 at most.
+
+    The response carries `total`, the number of users matching the filters
+    regardless of the page, so a client can walk the list with `offset`.
+    """
     if sort is not None:
         opts = sort.strip(",").split(",")
         sort = []

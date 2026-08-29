@@ -92,6 +92,25 @@ def get_client_ip(request) -> str:
     return peer
 
 
+def forwarding_is_unconfigured(address: str) -> bool:
+    """Whether this peer looks like a reverse proxy nobody told us about.
+
+    An address on the loopback or a private network, while TRUSTED_PROXIES is
+    empty, is what a panel behind an unconfigured nginx looks like: the client
+    addresses the panel sees are all the proxy's own.
+    """
+    if _trusted_networks != []:
+        return False
+    try:
+        ip = ipaddress.ip_address(address)
+    except ValueError:
+        return False
+    # Anything that is not routable on the internet: loopback, the private
+    # ranges a container network lives on, and the reserved blocks. A real
+    # client reaching the panel directly has a global address.
+    return not ip.is_global
+
+
 def is_secure_request(request) -> bool:
     """Whether the client reached us over HTTPS, TLS-terminating proxies included."""
     peer = request.client.host if request.client else None

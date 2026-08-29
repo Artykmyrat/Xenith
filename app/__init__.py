@@ -9,7 +9,8 @@ from fastapi.responses import JSONResponse
 from fastapi.routing import APIRoute
 
 from app.utils.cors import cors_policy
-from config import ALLOWED_ORIGINS, DEBUG, DOCS, XRAY_SUBSCRIPTION_PATH
+from config import (ALLOWED_ORIGINS, DEBUG, DOCS,
+                    JWT_ACCESS_TOKEN_EXPIRE_MINUTES, XRAY_SUBSCRIPTION_PATH)
 
 __version__ = "0.8.4"
 
@@ -59,6 +60,12 @@ def on_startup():
         raise ValueError(
             f"you can't use /{XRAY_SUBSCRIPTION_PATH}/ as subscription path it reserved for {app.title}"
         )
+
+    from app.utils.jwt import token_expiry_warning  # noqa: circular at import time
+
+    expiry_warning = token_expiry_warning(JWT_ACCESS_TOKEN_EXPIRE_MINUTES)
+    if expiry_warning:
+        logger.warning(expiry_warning)
 
     # A proxy holds two descriptors per connection, so the default soft limit of
     # 1024 runs out long before anything else does. Raising soft up to hard

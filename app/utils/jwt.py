@@ -1,4 +1,5 @@
 import hmac
+import logging
 import time
 import jwt
 from base64 import b64decode, b64encode
@@ -16,12 +17,55 @@ from config import ACCEPT_LEGACY_SUBSCRIPTION_TOKENS, JWT_ACCESS_TOKEN_EXPIRE_MI
 SUBSCRIPTION_TOKEN_SEPARATOR = "."
 LEGACY_SUBSCRIPTION_SIGNATURE_LENGTH = 10
 
+logger = logging.getLogger("uvicorn.error")
+
+# Said once per process. It answers the one question that decides whether
+# ACCEPT_LEGACY_SUBSCRIPTION_TOKENS can be turned off — is anybody still on a
+# link issued before the change? — and saying it per request would flood the
+# log of exactly the panel that has not migrated yet.
+_warned_about_legacy_token = False
+
+
+def _warn_about_legacy_token_once(username: str) -> None:
+    global _warned_about_legacy_token
+
+    if _warned_about_legacy_token:
+        return
+
+    _warned_about_legacy_token = True
+    logger.warning(
+        f'Served "{username}" from a subscription link issued before the signature change. '
+        "Those links carry a 60-bit truncated hash instead of an HMAC, and are honoured only "
+        "because ACCEPT_LEGACY_SUBSCRIPTION_TOKENS is on. Give the users still on them their "
+        "current link from the panel, then set it to false. This is logged once per restart, "
+        "so a quiet log after a few days of uptime means nobody is using an old link."
+    )
+
 
 @lru_cache(maxsize=None)
 def get_secret_key():
     from app.db import GetDB, get_jwt_secret_key
     with GetDB() as db:
         return get_jwt_secret_key(db)
+
+
+def token_expiry_warning(minutes: int) -> Optional[str]:
+    """Why a configured expiry of zero is worth saying out loud, or None.
+
+    Zero is a supported setting — some API clients hold a token indefinitely —
+    but it is easy to arrive at by accident, and what it costs is not obvious
+    from the name of the variable.
+    """
+    if minutes > 0:
+        return None
+
+    return (
+        f"JWT_ACCESS_TOKEN_EXPIRE_MINUTES is {minutes}, so admin tokens carry no expiry and "
+        "stay valid for as long as the panel keeps its signing key. A token that leaks — out "
+        "of a shell history, a script, a proxy log — can only be taken back by changing that "
+        "admin's password. Set it to a number of minutes (1440 is a day) unless something you "
+        "run depends on a token that does not run out."
+    )
 
 
 def create_admin_token(username: str, is_sudo=False) -> str:
@@ -125,7 +169,11 @@ def get_subscription_payload(token: str) -> Union[dict, None]:
         signature = token[-LEGACY_SUBSCRIPTION_SIGNATURE_LENGTH:]
         if not hmac.compare_digest(signature, _legacy_sign_subscription_data(data_b64)):
             return
-        return _subscription_payload_from_b64(data_b64)
+
+        payload = _subscription_payload_from_b64(data_b64)
+        if payload:
+            _warn_about_legacy_token_once(payload["username"])
+        return payload
 
     except jwt.exceptions.PyJWTError:
         return

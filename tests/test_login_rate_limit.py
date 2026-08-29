@@ -71,6 +71,37 @@ class TestWindowSliding:
         assert "1.2.3.4" not in limiter._hits
 
 
+class TestKeyCap:
+    def test_the_number_of_tracked_keys_is_bounded(self, clock):
+        """Part of a login key is the username, which the caller chooses."""
+        limiter = SlidingWindowRateLimiter(attempts=3, window=60, max_keys=10)
+
+        for index in range(200):
+            limiter.record_failure(f"1.2.3.4\nuser{index}")
+
+        assert len(limiter._hits) == 10
+
+    def test_the_key_just_seen_survives_the_eviction(self, clock):
+        limiter = SlidingWindowRateLimiter(attempts=3, window=60, max_keys=2)
+
+        for index in range(50):
+            limiter.record_failure(f"1.2.3.4\nuser{index}")
+
+        assert "1.2.3.4\nuser49" in limiter._hits
+
+    def test_a_blocked_key_is_not_evicted_by_junk(self, clock):
+        """Filling the dict must not be a way to clear someone else's block."""
+        limiter = SlidingWindowRateLimiter(attempts=3, window=60, max_keys=3)
+        for _ in range(3):
+            limiter.record_failure("1.2.3.4\nroot")
+            clock.tick(1)
+
+        for index in range(50):
+            limiter.record_failure(f"5.6.7.8\nuser{index}")
+
+        assert limiter.retry_after("1.2.3.4\nroot") > 0
+
+
 class TestReset:
     def test_success_clears_the_counter(self, limiter, clock):
         for _ in range(3):

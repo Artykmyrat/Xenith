@@ -1,3 +1,4 @@
+import logging
 import time
 from base64 import b64encode
 from calendar import timegm
@@ -16,6 +17,8 @@ SECRET = "test-secret-key"
 def secret(monkeypatch):
     monkeypatch.setattr(subs, "get_secret_key", lambda: SECRET)
     monkeypatch.setattr(subs, "ACCEPT_LEGACY_SUBSCRIPTION_TOKENS", True)
+    # The warning below fires once per process; each test starts from unsaid.
+    monkeypatch.setattr(subs, "_warned_about_legacy_token", False)
 
 
 def legacy_token(username: str, created_at: int) -> str:
@@ -78,6 +81,43 @@ class TestLegacyFormat:
 
         assert subs.get_subscription_payload(legacy_token("olduser", 1700000000)) is None
         assert subs.get_subscription_payload(subs.create_subscription_token("u")) is not None
+
+
+class TestLegacyTokensAreReported:
+    """Whether anyone still holds an old link is what decides when the setting
+    can be turned off, and nothing else in the panel would say so."""
+
+    def legacy_warnings(self, caplog):
+        return [r for r in caplog.records if "signature change" in r.getMessage()]
+
+    def test_using_an_old_link_is_reported(self, caplog):
+        with caplog.at_level(logging.WARNING, logger="uvicorn.error"):
+            subs.get_subscription_payload(legacy_token("olduser", 1700000000))
+
+        assert len(self.legacy_warnings(caplog)) == 1
+        assert "olduser" in self.legacy_warnings(caplog)[0].getMessage()
+
+    def test_it_is_said_once_however_many_links_are_served(self, caplog):
+        with caplog.at_level(logging.WARNING, logger="uvicorn.error"):
+            for username in ("olduser", "anotherold", "olduser"):
+                subs.get_subscription_payload(legacy_token(username, 1700000000))
+
+        assert len(self.legacy_warnings(caplog)) == 1
+
+    def test_a_current_link_says_nothing(self, caplog):
+        with caplog.at_level(logging.WARNING, logger="uvicorn.error"):
+            subs.get_subscription_payload(subs.create_subscription_token("newuser"))
+
+        assert self.legacy_warnings(caplog) == []
+
+    def test_a_forged_old_link_says_nothing(self, caplog):
+        """Only a link that actually worked means somebody has to migrate."""
+        token = legacy_token("olduser", 1700000000)
+
+        with caplog.at_level(logging.WARNING, logger="uvicorn.error"):
+            subs.get_subscription_payload(token[:-10] + "0" * 10)
+
+        assert self.legacy_warnings(caplog) == []
 
 
 class TestJWTFormat:

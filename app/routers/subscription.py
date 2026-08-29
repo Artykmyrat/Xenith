@@ -33,6 +33,11 @@ client_config = {
                    "reverse": False}
 }
 
+# Anchored, and built from the table above so the two cannot drift apart: an
+# unanchored pattern matches any path containing one of these names, and the
+# lookup that follows then has nothing to return.
+CLIENT_TYPE_PATTERN = "^(" + "|".join(re.escape(name) for name in client_config) + ")$"
+
 router = APIRouter(tags=['Subscription'], prefix=f'/{XRAY_SUBSCRIPTION_PATH}')
 
 
@@ -173,7 +178,7 @@ def user_get_usage(
 def user_subscription_with_client_type(
     request: Request,
     dbuser: UserResponse = Depends(get_validated_sub),
-    client_type: str = Path(..., regex="sing-box|clash-meta|clash|outline|v2ray|v2ray-json"),
+    client_type: str = Path(..., pattern=CLIENT_TYPE_PATTERN),
     db: Session = Depends(get_db),
     user_agent: str = Header(default="")
 ):
@@ -192,7 +197,7 @@ def user_subscription_with_client_type(
         )
     }
 
-    config = client_config.get(client_type)
+    config = client_config[client_type]
     conf = generate_subscription(user=user,
                                  config_format=config["config_format"],
                                  as_base64=config["as_base64"],

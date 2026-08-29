@@ -945,6 +945,12 @@ def update_admin(db: Session, dbadmin: Admin, modified_admin: AdminModify) -> Ad
     """
     Updates an admin's details.
 
+    The admin is replaced with what was given: `is_sudo` is applied as sent,
+    and an omitted telegram_id or discord_webhook clears the stored one. Use
+    partial_update_admin when the caller means "leave what I did not send".
+    The password is the exception — there is no such thing as clearing it, so
+    None keeps the current one.
+
     Args:
         db (Session): Database session.
         dbadmin (Admin): The admin object to be updated.
@@ -953,15 +959,12 @@ def update_admin(db: Session, dbadmin: Admin, modified_admin: AdminModify) -> Ad
     Returns:
         Admin: The updated admin object.
     """
-    if modified_admin.is_sudo:
-        dbadmin.is_sudo = modified_admin.is_sudo
+    dbadmin.is_sudo = modified_admin.is_sudo
     if modified_admin.password is not None and dbadmin.hashed_password != modified_admin.hashed_password:
         dbadmin.hashed_password = modified_admin.hashed_password
         dbadmin.password_reset_at = datetime.utcnow()
-    if modified_admin.telegram_id:
-        dbadmin.telegram_id = modified_admin.telegram_id
-    if modified_admin.discord_webhook:
-        dbadmin.discord_webhook = modified_admin.discord_webhook
+    dbadmin.telegram_id = modified_admin.telegram_id
+    dbadmin.discord_webhook = modified_admin.discord_webhook
 
     db.commit()
     db.refresh(dbadmin)

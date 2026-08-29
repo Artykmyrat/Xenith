@@ -34,9 +34,12 @@ async def core_logs(websocket: WebSocket, db: Session = Depends(get_db)):
             interval = float(interval)
         except ValueError:
             return await websocket.close(reason="Invalid interval value", code=4400)
-        if interval > 10:
+        # Zero keeps its old meaning of "send each line as it arrives"; a
+        # negative one used to pass this check and then behave like zero,
+        # while the message said otherwise.
+        if interval < 0 or interval > 10:
             return await websocket.close(
-                reason="Interval must be more than 0 and at most 10 seconds", code=4400
+                reason="Interval must be between 0 and 10 seconds", code=4400
             )
 
     await websocket.accept()

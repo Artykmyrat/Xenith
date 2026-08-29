@@ -4,6 +4,7 @@ import pytest
 from OpenSSL import crypto
 
 from app.xray.node import (
+    CERTIFICATE_FETCH_TIMEOUT,
     NodeCertificateMismatch,
     ReSTXRayNode,
     certificate_fingerprint,
@@ -63,7 +64,15 @@ def node(client_identity, monkeypatch):
 
 
 def present(monkeypatch, pem):
-    monkeypatch.setattr(ssl, "get_server_certificate", lambda addr: pem)
+    """Stand in for the TLS handshake, recording how it was called."""
+    calls = []
+
+    def fetch(addr, timeout=None):
+        calls.append({"addr": addr, "timeout": timeout})
+        return pem
+
+    monkeypatch.setattr(ssl, "get_server_certificate", fetch)
+    return calls
 
 
 class TestFingerprint:
@@ -98,6 +107,16 @@ class TestPinning:
 
         with pytest.raises(NodeCertificateMismatch):
             instance.connect()
+
+    def test_the_fetch_cannot_hang_for_ever(self, node, node_cert, monkeypatch):
+        """A node that accepts the connection and then says nothing would
+        otherwise hold this thread for as long as the kernel allows."""
+        calls = present(monkeypatch, node_cert)
+
+        node().connect()
+
+        assert calls[0]["timeout"] == CERTIFICATE_FETCH_TIMEOUT
+        assert CERTIFICATE_FETCH_TIMEOUT > 0
 
     def test_the_pin_survives_a_refused_connection(self, node, node_cert, other_node_cert, monkeypatch):
         instance = node(server_cert=node_cert)

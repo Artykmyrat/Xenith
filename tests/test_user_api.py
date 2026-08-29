@@ -10,6 +10,7 @@ from datetime import datetime, timedelta
 import pytest
 
 from app.db import crud
+from app.routers.user import USERS_DEFAULT_LIMIT
 
 from conftest import auth, new_user
 
@@ -190,6 +191,28 @@ class TestReadUsers:
 
         assert len(body["users"]) == 1
         assert body["total"] == 3
+
+    def test_the_page_size_is_capped(self, client, population, sudo_admin):
+        assert client.get(
+            "/api/users", params={"limit": 5000}, headers=auth(sudo_admin)
+        ).status_code == 422
+
+    def test_a_nonsense_page_is_refused(self, client, population, sudo_admin):
+        for params in ({"limit": 0}, {"limit": -1}, {"offset": -1}):
+            assert client.get(
+                "/api/users", params=params, headers=auth(sudo_admin)
+            ).status_code == 422
+
+    def test_a_client_that_asks_for_no_page_gets_the_default_one(self, client, db, sudo_admin):
+        """Without a limit the endpoint used to return every user there is."""
+        extra = USERS_DEFAULT_LIMIT + 1
+        for index in range(extra):
+            crud.create_user(db, new_user(f"bulk_{index:04}"), admin=sudo_admin)
+
+        body = client.get("/api/users", headers=auth(sudo_admin)).json()
+
+        assert len(body["users"]) == USERS_DEFAULT_LIMIT
+        assert body["total"] == extra
 
     def test_sorting_is_applied(self, client, population, sudo_admin):
         body = client.get("/api/users", params={"sort": "-username"}, headers=auth(sudo_admin)).json()

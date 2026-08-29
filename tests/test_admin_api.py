@@ -90,6 +90,33 @@ class TestLogin:
 
         assert login(client, "root", "rootpw").status_code == 429
 
+    def test_one_account_being_flooded_does_not_lock_out_another(
+        self, client, sudo_admin, plain_admin, monkeypatch
+    ):
+        """Behind an unconfigured proxy every client shares one address, so
+        counting by address alone would lock the whole panel."""
+        from app.routers import admin as admin_router
+
+        monkeypatch.setattr(admin_router.login_rate_limiter, "attempts", 2)
+        monkeypatch.setattr(admin_router.login_rate_limiter, "window", 300)
+        for _ in range(3):
+            login(client, "root", "wrong")
+
+        assert login(client, "root", "rootpw").status_code == 429
+        assert login(client, "reseller", "resellerpw").status_code == 200
+
+    def test_the_case_of_the_username_does_not_start_a_fresh_count(
+        self, client, sudo_admin, monkeypatch
+    ):
+        from app.routers import admin as admin_router
+
+        monkeypatch.setattr(admin_router.login_rate_limiter, "attempts", 2)
+        monkeypatch.setattr(admin_router.login_rate_limiter, "window", 300)
+        login(client, "root", "wrong")
+        login(client, "ROOT", "wrong")
+
+        assert login(client, "Root", "wrong").status_code == 429
+
     def test_a_success_clears_the_counter(self, client, sudo_admin, monkeypatch):
         from app.routers import admin as admin_router
 
@@ -100,6 +127,44 @@ class TestLogin:
 
         for _ in range(2):
             assert login(client, "root", "wrong").status_code == 401
+
+
+class TestEnvironmentSudoer:
+    """SUDO_USERNAME / SUDO_PASSWORD from .env, checked before the database."""
+
+    @pytest.fixture
+    def env_sudoer(self, monkeypatch):
+        """Two modules read this setting: one to check the password, the other
+        to recognise the account behind a token it never stored."""
+        from app import dependencies
+        from app.models import admin as admin_model
+
+        for module in (dependencies, admin_model):
+            monkeypatch.setattr(module, "SUDOERS", {"owner": "sekret-pärool"})
+
+    def test_the_configured_password_is_accepted(self, client, env_sudoer):
+        response = login(client, "owner", "sekret-pärool")
+
+        assert response.status_code == 200
+
+    def test_a_wrong_password_is_not(self, client, env_sudoer):
+        assert login(client, "owner", "sekret-parool").status_code == 401
+
+    def test_the_account_is_a_sudoer(self, client, env_sudoer):
+        token = login(client, "owner", "sekret-pärool").json()["access_token"]
+
+        me = client.get("/api/admin", headers={"Authorization": f"Bearer {token}"})
+
+        assert me.json() == {
+            "username": "owner",
+            "is_sudo": True,
+            "telegram_id": None,
+            "discord_webhook": None,
+            "users_usage": None,
+        }
+
+    def test_another_username_still_reaches_the_database(self, client, env_sudoer, sudo_admin):
+        assert login(client, "root", "rootpw").status_code == 200
 
 
 class TestLogout:
@@ -175,6 +240,37 @@ class TestManageAdmins:
 
         assert response.status_code == 200
         assert response.json()["is_sudo"] is True
+
+    def test_the_contact_fields_can_be_set_and_cleared(self, client, db, sudo_admin, plain_admin):
+        client.put(
+            "/api/admin/reseller",
+            json={
+                "is_sudo": False,
+                "telegram_id": 4242,
+                "discord_webhook": "https://discord.com/api/webhooks/1/x",
+            },
+            headers=auth(sudo_admin),
+        )
+        db.refresh(plain_admin)
+        assert plain_admin.telegram_id == 4242
+
+        response = client.put(
+            "/api/admin/reseller", json={"is_sudo": False}, headers=auth(sudo_admin)
+        )
+
+        assert response.status_code == 200
+        db.refresh(plain_admin)
+        assert plain_admin.telegram_id is None
+        assert plain_admin.discord_webhook is None
+
+    def test_a_sudo_admin_cannot_demote_itself(self, client, db, sudo_admin):
+        response = client.put(
+            "/api/admin/root", json={"is_sudo": False}, headers=auth(sudo_admin)
+        )
+
+        assert response.status_code == 403
+        db.refresh(sudo_admin)
+        assert sudo_admin.is_sudo is True
 
     def test_another_sudo_account_cannot_be_edited(self, client, db, sudo_admin):
         crud.create_admin(db, AdminCreate(username="other", password="pw", is_sudo=True))

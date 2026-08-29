@@ -1,3 +1,4 @@
+import hmac
 from typing import Optional, Union
 from app.models.admin import AdminInDB, AdminValidationResult, Admin
 from app.models.user import UserResponse, UserStatus
@@ -10,7 +11,13 @@ from app.utils.jwt import get_subscription_payload
 
 def validate_admin(db: Session, username: str, password: str) -> Optional[AdminValidationResult]:
     """Validate admin credentials with environment variables or database."""
-    if SUDOERS.get(username) == password:
+    # The .env sudoer's password is stored in the clear, so it is the one
+    # comparison here that is not already constant time — bcrypt's own is.
+    # Encoded first: compare_digest rejects a str holding anything non-ASCII.
+    env_password = SUDOERS.get(username)
+    if env_password is not None and hmac.compare_digest(
+        env_password.encode("utf-8"), password.encode("utf-8")
+    ):
         return AdminValidationResult(username=username, is_sudo=True)
 
     dbadmin = crud.get_admin(db, username)

@@ -27,7 +27,9 @@ Xenith keeps full data compatibility with Marzban:
 
 - the data directory stays at `/var/lib/marzban`
 - database schema and Alembic revisions are unchanged
-- existing subscription links keep working
+- existing subscription links keep working, for as long as
+  `ACCEPT_LEGACY_SUBSCRIPTION_TOKENS` stays on — see *After installing* in
+  [docs/INSTALL.md](docs/INSTALL.md) for how to close that window
 - the `marzban-cli` and `skypanel-cli` commands remain available as aliases of `xenith-cli`
 - `MARZBAN_ADMIN_PASSWORD` and `SKYPANEL_ADMIN_PASSWORD` are still honoured alongside `XENITH_ADMIN_PASSWORD`
 

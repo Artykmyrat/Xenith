@@ -13,12 +13,15 @@ operation ids were assigned. Hence these, which call the handler directly with
 the scheduler and the rlimit work stubbed out.
 """
 
+import logging
+
 import pytest
 from fastapi.routing import APIRoute
 
 import app as app_module
 from app import app as fastapi_app
 from app.utils import limits
+from app.utils.jwt import token_expiry_warning
 
 
 @pytest.fixture
@@ -84,3 +87,33 @@ class TestSubscriptionPathGuard:
             app_module.on_startup()
 
         assert startup == []
+
+
+class TestTokenExpiryWarning:
+    """An expiry of zero is legitimate, and quiet enough to reach by accident."""
+
+    def test_a_real_expiry_says_nothing(self):
+        assert token_expiry_warning(1440) is None
+
+    @pytest.mark.parametrize("minutes", [0, -1])
+    def test_a_missing_expiry_is_called_out(self, minutes):
+        warning = token_expiry_warning(minutes)
+
+        assert warning is not None
+        assert "JWT_ACCESS_TOKEN_EXPIRE_MINUTES" in warning
+
+    def test_startup_says_it_where_an_operator_will_see_it(self, startup, monkeypatch, caplog):
+        monkeypatch.setattr(app_module, "JWT_ACCESS_TOKEN_EXPIRE_MINUTES", 0)
+
+        with caplog.at_level(logging.WARNING, logger="uvicorn.error"):
+            app_module.on_startup()
+
+        assert [r for r in caplog.records if "JWT_ACCESS_TOKEN_EXPIRE_MINUTES" in r.getMessage()]
+
+    def test_startup_is_quiet_with_an_expiry_configured(self, startup, monkeypatch, caplog):
+        monkeypatch.setattr(app_module, "JWT_ACCESS_TOKEN_EXPIRE_MINUTES", 1440)
+
+        with caplog.at_level(logging.WARNING, logger="uvicorn.error"):
+            app_module.on_startup()
+
+        assert [r for r in caplog.records if "JWT_ACCESS_TOKEN_EXPIRE_MINUTES" in r.getMessage()] == []

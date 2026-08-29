@@ -118,6 +118,33 @@ class TestWildcard:
         assert get_client_ip(request) == "1.2.3.4"
 
 
+class TestUnconfiguredForwarding:
+    """What tells the panel its client addresses are probably a proxy's own."""
+
+    @pytest.mark.parametrize("address", ["127.0.0.1", "::1", "10.0.0.1", "192.168.1.4", "172.17.0.1"])
+    def test_a_local_peer_with_nothing_trusted_is_flagged(self, trust, address):
+        trust([])
+
+        assert module.forwarding_is_unconfigured(address) is True
+
+    def test_a_routable_peer_is_not(self, trust):
+        """8.8.8.8 rather than the 203.0.113.0/24 used elsewhere here: that one
+        is documentation space, which ipaddress counts as private."""
+        trust([])
+
+        assert module.forwarding_is_unconfigured("8.8.8.8") is False
+
+    def test_nothing_is_flagged_once_a_proxy_is_trusted(self, trust):
+        trust(["127.0.0.1"])
+
+        assert module.forwarding_is_unconfigured("127.0.0.1") is False
+
+    def test_an_unparseable_address_is_not_flagged(self, trust):
+        trust([])
+
+        assert module.forwarding_is_unconfigured("Unknown") is False
+
+
 class TestConfigValidation:
     def test_invalid_entry_is_rejected(self):
         with pytest.raises(ValueError, match="TRUSTED_PROXIES"):
