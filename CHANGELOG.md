@@ -10,6 +10,29 @@ own history starts at 0.9.0; for anything older, see the upstream changelog.
 
 ## [Unreleased]
 
+### Added
+
+- **Core** is a screen of its own under *Configuration*, replacing the drawer
+  the core configuration used to open in. It carries the editor, the version
+  and state of the core, restart, and a tail of the core log.
+- Inbound templates on that screen: VLESS over tcp, grpc or ws, with one choice
+  of TLS or REALITY for all three. A template arrives with a tag and a port the
+  configuration is not using; REALITY brings its own key pair and short ID, TLS
+  points at a certificate certbot already holds. REALITY over WebSocket is
+  refused, since xray does not carry it.
+
+### Fixed
+
+- A parameter the kernel does not expose — `net.bridge.bridge-nf-call-iptables`
+  without `br_netfilter`, say — is reported on its own line instead of failing
+  the whole set of settings around it.
+
+### Changed
+
+- `xenith restart` recreates the container rather than restarting it, so an
+  edited `.env` takes effect. `SYSCTL_ENABLED` now also pulls in the privileges
+  kernel tuning needs, through `docker-compose.sysctl.yml`.
+
 ### Removed
 
 - The GitHub Actions pipeline (`.github/workflows`). Images are built and

@@ -9,8 +9,8 @@ from starlette.websockets import WebSocketDisconnect
 from app import xray
 from app.db import Session, get_db
 from app.models.admin import Admin
-from app.models.core import CoreStats
-from app.utils import responses
+from app.models.core import CoreStats, InboundTemplateRequest
+from app.utils import inbound_template, responses
 from app.utils.auth_cookie import token_from_websocket
 from app.xray import XRayConfig
 from config import XRAY_JSON
@@ -98,6 +98,23 @@ def restart_core(admin: Admin = Depends(Admin.check_sudo_admin)):
             xray.operations.restart_node(node_id, startup_config)
 
     return {}
+
+
+@router.post("/core/inbound-template", responses={403: responses._403})
+def core_inbound_template(
+    payload: InboundTemplateRequest, admin: Admin = Depends(Admin.check_sudo_admin)
+) -> dict:
+    """One ready-to-append inbound for the core configuration screen.
+
+    Not idempotent: a REALITY template carries a key pair generated for this
+    call alone.
+    """
+    try:
+        return inbound_template.build(
+            payload.transport, payload.security, payload.taken_tags, payload.taken_ports
+        )
+    except inbound_template.TemplateError as err:
+        raise HTTPException(status_code=400, detail=str(err))
 
 
 @router.get("/core/config", responses={403: responses._403})

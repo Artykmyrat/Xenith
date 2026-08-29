@@ -292,6 +292,21 @@ export const uploadNginxFile = (file: File, path?: string) => {
 
 export const restartCore = () => fetch("/core/restart", { method: "POST" });
 
+export type InboundTransport = "tcp" | "grpc" | "ws";
+export type InboundSecurity = "tls" | "reality";
+
+/**
+ * One inbound, built to be appended to the core configuration as it is. The
+ * tags and ports already in the editor go along so the new one avoids them,
+ * and a REALITY template carries keys generated for this call alone.
+ */
+export const inboundTemplate = (body: {
+  transport: InboundTransport;
+  security: InboundSecurity;
+  taken_tags: string[];
+  taken_ports: number[];
+}) => fetch("/core/inbound-template", { method: "POST", body }) as Promise<Record<string, any>>;
+
 /** Every inbound, flattened out of the by-protocol map the API returns. */
 export const flattenInbounds = (grouped?: Record<string, Inbound[]>): (Inbound & { protocol: string })[] =>
   Object.entries(grouped || {}).flatMap(([protocol, inbounds]) =>

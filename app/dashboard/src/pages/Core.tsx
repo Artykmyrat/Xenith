@@ -3,6 +3,7 @@ import { FC, Suspense, lazy, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useQueryClient } from "react-query";
 import { useCoreSettings } from "contexts/CoreSettingsContext";
+import { InboundSecurity, InboundTransport, inboundTemplate } from "xenith/api";
 import { Blueprint } from "xenith/Blueprint";
 import { ConfirmDialog } from "xenith/ConfirmDialog";
 import { LogLines, PanelHead, PanelNote } from "xenith/panels";
@@ -12,6 +13,13 @@ const JsonEditor = lazy(() => import("components/JsonEditor").then((mod) => ({ d
 
 /** Enough to watch the core come back after a save; the Logs screen keeps the rest. */
 const LOG_LINES = 200;
+
+/** REALITY has no WebSocket to borrow a handshake from, so that pair is blocked. */
+const TEMPLATES: { transport: InboundTransport; label: string }[] = [
+  { transport: "tcp", label: "VLESS TCP" },
+  { transport: "grpc", label: "VLESS gRPC" },
+  { transport: "ws", label: "VLESS WS" },
+];
 
 /** Formatting differences are not edits, so both sides are compared parsed. */
 const normalise = (text: string) => {
@@ -61,6 +69,11 @@ export const Core: FC = () => {
   const [dirty, setDirty] = useState(false);
   const [restarting, setRestarting] = useState(false);
   const [confirmRestart, setConfirmRestart] = useState(false);
+  // Set when a template is appended: the editor takes its content from this
+  // once there is one, which is how the new inbound gets in front of the eyes.
+  const [doc, setDoc] = useState<any>(null);
+  const [security, setSecurity] = useState<InboundSecurity>("reality");
+  const [adding, setAdding] = useState<InboundTransport | null>(null);
 
   useEffect(() => {
     fetchCoreSettings();
@@ -103,6 +116,47 @@ export const Core: FC = () => {
       });
   };
 
+  const onAddTemplate = (transport: InboundTransport) => {
+    let current: any;
+    try {
+      current = JSON.parse(draft.current);
+    } catch {
+      toast({ title: t("xenith.coreConfig.templateInvalid"), status: "error", position: "top", duration: 4000 });
+      return;
+    }
+
+    const inbounds: any[] = Array.isArray(current?.inbounds) ? current.inbounds : [];
+    setAdding(transport);
+    inboundTemplate({
+      transport,
+      security,
+      taken_tags: inbounds.map((inbound) => inbound?.tag).filter((tag): tag is string => typeof tag === "string"),
+      taken_ports: inbounds.map((inbound) => inbound?.port).filter((port): port is number => typeof port === "number"),
+    })
+      .then((inbound) => {
+        setDoc({ ...current, inbounds: [...inbounds, inbound] });
+        setDirty(true);
+        toast({
+          title: t("xenith.coreConfig.templateAdded", { tag: inbound.tag }),
+          status: "success",
+          position: "top",
+          duration: 4000,
+          isClosable: true,
+        });
+      })
+      .catch((err) => {
+        const detail = err?.response?._data?.detail;
+        toast({
+          title: typeof detail === "string" ? detail : t("core.generalErrorMessage"),
+          status: "error",
+          position: "top",
+          duration: 6000,
+          isClosable: true,
+        });
+      })
+      .finally(() => setAdding(null));
+  };
+
   const onRestart = () => {
     setRestarting(true);
     restartCore()
@@ -130,6 +184,42 @@ export const Core: FC = () => {
           }
         />
 
+        {/* Templates append to the configuration rather than replace it, so
+            what is on screen is never lost to a stray click. */}
+        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+          <span className="xn-label">{t("xenith.coreConfig.templates")}</span>
+          {TEMPLATES.map(({ transport, label }) => {
+            const blocked = security === "reality" && transport === "ws";
+            return (
+              <button
+                key={transport}
+                type="button"
+                className="xn-btn"
+                style={{ fontSize: 12.5 }}
+                title={blocked ? t("xenith.coreConfig.realityNeedsStream") : undefined}
+                disabled={blocked || isLoading || adding !== null}
+                onClick={() => onAddTemplate(transport)}
+              >
+                {adding === transport ? t("xenith.working") : label}
+              </button>
+            );
+          })}
+          <div className="xn-seg" style={{ marginLeft: "auto" }}>
+            {(["reality", "tls"] as InboundSecurity[]).map((option) => (
+              <button
+                key={option}
+                type="button"
+                className="xn-seg-opt"
+                style={{ fontSize: 12 }}
+                aria-pressed={security === option}
+                onClick={() => setSecurity(option)}
+              >
+                {option.toUpperCase()}
+              </button>
+            ))}
+          </div>
+        </div>
+
         <div
           style={{
             border: "1px solid var(--xn-neutral-300)",
@@ -145,7 +235,7 @@ export const Core: FC = () => {
           ) : (
             <Suspense fallback={<EditorFallback />}>
               <JsonEditor
-                json={config}
+                json={doc ?? config}
                 onSave={onSave}
                 onChange={(value) => {
                   draft.current = value;

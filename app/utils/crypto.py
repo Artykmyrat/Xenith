@@ -83,3 +83,22 @@ def get_x25519_public_key(private_key_b64: str) -> str:
 
     except (ValueError, binascii.Error):
         raise ValueError("Invalid private key.")
+
+
+def generate_x25519_keypair() -> tuple:
+    """A fresh X25519 pair, encoded the way `xray x25519` prints it.
+
+    REALITY takes the private key in its own settings and hands the public one
+    to clients, both URL-safe Base64 without padding.
+
+    :return: (private key, public key)
+    """
+    private_key = x25519.X25519PrivateKey.generate()
+    private_bytes = private_key.private_bytes(
+        encoding=serialization.Encoding.Raw,
+        format=serialization.PrivateFormat.Raw,
+        encryption_algorithm=serialization.NoEncryption(),
+    )
+    private_key_b64 = base64.urlsafe_b64encode(private_bytes).decode().rstrip("=")
+
+    return private_key_b64, get_x25519_public_key(private_key_b64)
