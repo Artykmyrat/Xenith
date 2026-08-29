@@ -14,6 +14,7 @@ the scheduler and the rlimit work stubbed out.
 """
 
 import logging
+import socket
 
 import pytest
 from fastapi.routing import APIRoute
@@ -117,3 +118,46 @@ class TestTokenExpiryWarning:
             app_module.on_startup()
 
         assert [r for r in caplog.records if "JWT_ACCESS_TOKEN_EXPIRE_MINUTES" in r.getMessage()] == []
+
+
+class TestBindAddress:
+    """Working out what to bind when no SSL certificate is configured.
+
+    `check_and_modify_ip` resolves UVICORN_HOST to decide whether the panel may
+    bind it directly. The lookup can fail, and it does not fail with the error
+    the handler used to catch: socket.gethostbyname raises socket.gaierror,
+    which is an OSError, so a hostname that does not resolve crashed the panel
+    on startup instead of falling back to localhost.
+    """
+
+    def test_a_name_that_does_not_resolve_falls_back(self, monkeypatch):
+        import main
+
+        def unresolvable(name):
+            raise socket.gaierror(-2, "Name or service not known")
+
+        monkeypatch.setattr(main.socket, "gethostbyname", unresolvable)
+
+        assert main.check_and_modify_ip("panel.invalid") == "localhost"
+
+    def test_anything_that_is_not_an_address_falls_back(self, monkeypatch):
+        import main
+
+        monkeypatch.setattr(main.socket, "gethostbyname", lambda name: "not an address")
+
+        assert main.check_and_modify_ip("panel.example.com") == "localhost"
+
+    def test_the_wildcard_address_becomes_localhost(self):
+        import main
+
+        assert main.check_and_modify_ip("0.0.0.0") == "localhost"
+
+    def test_a_private_address_is_kept(self):
+        import main
+
+        assert main.check_and_modify_ip("192.168.1.10") == "192.168.1.10"
+
+    def test_a_public_address_is_not_bound_directly(self):
+        import main
+
+        assert main.check_and_modify_ip("8.8.8.8") == "localhost"

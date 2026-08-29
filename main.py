@@ -31,10 +31,9 @@ def check_and_modify_ip(ip_address: str) -> str:
         ip_address (str): IP address to check
 
     Returns:
-        str: Original IP if private, otherwise localhost
-
-    Raises:
-        ValueError: If the provided IP address is invalid, return localhost.
+        str: Original IP if private, otherwise localhost. An address that is
+        not one, and a name that does not resolve, both fall back to localhost
+        rather than stopping the panel from starting.
     """
     try:
         # Attempt to resolve hostname to IP address
@@ -50,7 +49,10 @@ def check_and_modify_ip(ip_address: str) -> str:
         else:
             return "localhost"
 
-    except ValueError as e:
+    # ValueError covers an address that is not one; OSError covers the lookup
+    # itself, which raises socket.gaierror for a name that does not resolve.
+    # Neither is worth refusing to start over: localhost is the safe answer.
+    except (ValueError, OSError):
         return "localhost"
 
 

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 
 from app.models.admin import Admin
 from app.models.certificate import (CertificateCreate, CertificateList,
@@ -57,10 +57,20 @@ def issue_certificate(payload: CertificateCreate, admin: Admin = Depends(Admin.c
     response_model=CertificateList,
     responses={400: responses._400, 403: responses._403},
 )
-def renew_certificate(name: str, admin: Admin = Depends(Admin.check_sudo_admin)):
-    """Force a renewal of one certificate."""
+def renew_certificate(
+    name: str,
+    force: bool = Query(
+        False,
+        description=(
+            "Reissue even when the certificate is not due yet. Let's Encrypt allows five "
+            "duplicates of the same names per week, so leave this off unless you mean it."
+        ),
+    ),
+    admin: Admin = Depends(Admin.check_sudo_admin),
+):
+    """Renew one certificate, by default only if it is close enough to expiry."""
     try:
-        return _as_response(certbot.renew_certificate(name))
+        return _as_response(certbot.renew_certificate(name, force=force))
     except certbot.CertbotError as err:
         raise HTTPException(status_code=400, detail=str(err))
 

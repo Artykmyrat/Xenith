@@ -225,8 +225,20 @@ def issue_certificate(
     return list_certificates()
 
 
-def renew_certificate(name: str) -> List[Certificate]:
-    _run(["renew", "--cert-name", _validate_name(name), "--non-interactive", "--force-renewal"])
+def renew_certificate(name: str, force: bool = False) -> List[Certificate]:
+    """Renew one lineage, by default only when it is actually due.
+
+    `--force-renewal` issues a fresh certificate whatever the expiry says, and
+    Let's Encrypt counts five duplicates of the same set of names per week:
+    a handful of renew clicks is enough to lock the domain out until the
+    window slides. Certbot's own answer for a certificate that is not due is
+    to do nothing and say so, which is what an admin pressing the button
+    wants nearly every time. Forcing stays available, but has to be asked for.
+    """
+    args = ["renew", "--cert-name", _validate_name(name), "--non-interactive"]
+    if force:
+        args.append("--force-renewal")
+    _run(args)
     return list_certificates()
 
 

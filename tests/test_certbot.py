@@ -5,6 +5,7 @@ import pytest
 from app.utils import certbot
 from app.utils.certbot import (CertbotError, build_issue_args, parse_certificates,
                                validate_domain, validate_domains)
+from conftest import auth
 
 CERTBOT_OUTPUT = """
 Saving debug log to /var/log/letsencrypt/letsencrypt.log
@@ -202,3 +203,83 @@ class TestRunning:
 
         with pytest.raises(CertbotError):
             certbot.renew_certificate("name; rm -rf /")
+
+
+class TestRenewal:
+    """`--force-renewal` reissues whatever the expiry says.
+
+    Let's Encrypt counts five duplicates of the same set of names per week, so
+    a renew button that always forces turns a handful of clicks into a locked
+    out domain. The default is now certbot's own behaviour — renew what is due,
+    leave the rest alone — and forcing has to be asked for.
+    """
+
+    @pytest.fixture
+    def runs(self, monkeypatch):
+        calls = []
+
+        class Result:
+            returncode = 0
+            stdout = CERTBOT_OUTPUT
+            stderr = ""
+
+        def record(args, **kwargs):
+            calls.append(args)
+            return Result()
+
+        monkeypatch.setattr(subprocess, "run", record)
+        return calls
+
+    def renew_args(self, calls):
+        return next(args for args in calls if args[1] == "renew")
+
+    def test_renewing_does_not_force_by_default(self, runs):
+        certbot.renew_certificate("panel.example.com")
+
+        assert "--force-renewal" not in self.renew_args(runs)
+
+    def test_the_lineage_is_named_and_the_run_is_non_interactive(self, runs):
+        certbot.renew_certificate("panel.example.com")
+        args = self.renew_args(runs)
+
+        assert args[1:] == ["renew", "--cert-name", "panel.example.com", "--non-interactive"]
+
+    def test_forcing_is_available_when_it_is_asked_for(self, runs):
+        certbot.renew_certificate("panel.example.com", force=True)
+
+        assert "--force-renewal" in self.renew_args(runs)
+
+    def test_the_certificates_are_read_back_afterwards(self, runs):
+        certificates = certbot.renew_certificate("panel.example.com")
+
+        assert [c.name for c in certificates] == ["panel.example.com", "old.example.com"]
+        assert [args[1] for args in runs] == ["renew", "certificates"]
+
+
+class TestRenewalEndpoint:
+    """The route is a thin pass-through, which is exactly how a default drifts."""
+
+    @pytest.fixture
+    def renewals(self, monkeypatch):
+        calls = []
+        monkeypatch.setattr(
+            certbot, "renew_certificate", lambda name, force=False: calls.append((name, force)) or []
+        )
+        return calls
+
+    def test_the_endpoint_does_not_force_by_default(self, client, sudo_admin, renewals):
+        response = client.post("/api/certificates/panel.example.com/renew", headers=auth(sudo_admin))
+
+        assert response.status_code == 200
+        assert renewals == [("panel.example.com", False)]
+
+    def test_force_is_passed_through_when_asked_for(self, client, sudo_admin, renewals):
+        client.post("/api/certificates/panel.example.com/renew?force=true", headers=auth(sudo_admin))
+
+        assert renewals == [("panel.example.com", True)]
+
+    def test_a_reseller_may_not_renew(self, client, plain_admin, renewals):
+        response = client.post("/api/certificates/panel.example.com/renew", headers=auth(plain_admin))
+
+        assert response.status_code == 403
+        assert renewals == []

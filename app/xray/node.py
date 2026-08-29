@@ -99,8 +99,16 @@ class ReSTXRayNode:
 
         # Nodes present a self-signed certificate, so the pinned certificate is
         # used as the only trust anchor. Hostname checking stays off because the
-        # certificate's subject does not carry the node's address.
-        self._ssl_context = ssl.create_default_context()
+        # certificate's subject does not carry the node's address — which is
+        # what makes the trust store the whole of the check, and why this is
+        # built empty rather than with create_default_context(). That helper
+        # differs from a bare client context in exactly one way, the system
+        # roots it loads, and those have no business here: with the hostname
+        # unchecked, any certificate signed by any public CA would otherwise
+        # be accepted for a node, so anyone able to answer on the node's
+        # address could serve its logs. `verify_mode` is already CERT_REQUIRED
+        # and the protocol floor already TLS 1.2; only the anchors change.
+        self._ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
         self._ssl_context.check_hostname = False
         self._ssl_context.load_cert_chain(certfile=self.session.cert[0], keyfile=self.session.cert[1])
 
@@ -186,10 +194,17 @@ class ReSTXRayNode:
         return self._api
 
     def _pin_certificate(self, pem: str) -> None:
-        """Trust this certificate, and only this one, for the node."""
+        """Trust this certificate, and only this one, for the node.
+
+        Loaded into the log stream's SSL context here rather than where that
+        stream connects: the context outlives every reconnect, so loading it
+        per attempt piles the same certificate into it once every two seconds
+        for as long as anybody is watching the logs.
+        """
         self._node_cert = pem
         self._node_certfile = string_to_temp_file(pem)
         self.session.verify = self._node_certfile.name
+        self._ssl_context.load_verify_locations(self._node_certfile.name)
 
     @property
     def server_cert(self) -> Optional[str]:
@@ -291,7 +306,6 @@ class ReSTXRayNode:
         while self._logs_queues:
             try:
                 websocket_url = f"{self._logs_ws_url}?session_id={self._session_id}&interval=0.7"
-                self._ssl_context.load_verify_locations(self.session.verify)
                 ws = create_connection(websocket_url, sslopt={"context": self._ssl_context}, timeout=2)
                 while self._logs_queues:
                     try:

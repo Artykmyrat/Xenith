@@ -185,6 +185,11 @@ def user_subscription_with_client_type(
     """Provides a subscription link based on the specified client type (e.g., Clash, V2Ray)."""
     user: UserResponse = UserResponse.model_validate(dbuser)
 
+    # Same bookkeeping the user-agent route does. A client pinned to an explicit
+    # format is still a client fetching its config, and without this its user
+    # would show a subscription that had never been updated.
+    crud.update_user_sub(db, dbuser, user_agent)
+
     response_headers = {
         "content-disposition": f'attachment; filename="{user.username}"',
         "profile-web-page-url": str(request.url),

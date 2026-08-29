@@ -141,3 +141,127 @@ class TestTLSContext:
 
         with open(instance.session.verify) as bundle:
             assert bundle.read() == node_cert
+
+
+class TestLogStreamTrust:
+    """The log stream's SSL context has to trust the pinned certificate, once.
+
+    It is built in __init__ and reused for every reconnect, and the reconnect
+    loop runs every two seconds for as long as somebody is watching. Loading
+    the anchor there meant the same certificate was pushed into that context
+    on every pass; it belongs where the certificate is pinned.
+    """
+
+    def node_anchors(self, instance):
+        """How many times the node's own certificate sits in the context.
+
+        Counted by common name rather than by the size of the trust store: the
+        context starts out holding the system roots, which are not what these
+        tests are about. `make_certificate` names a node's certificate after
+        the subject a node really uses.
+        """
+        return [
+            cert
+            for cert in instance._ssl_context.get_ca_certs()
+            for rdn in cert.get("subject", ())
+            for field, value in rdn
+            if field == "commonName" and value == "Gozargah"
+        ]
+
+    def test_a_certificate_pinned_up_front_is_trusted(self, node, node_cert):
+        instance = node(server_cert=node_cert)
+
+        assert len(self.node_anchors(instance)) == 1
+
+    def test_a_certificate_pinned_on_first_use_is_trusted(self, node, node_cert, monkeypatch):
+        instance = node()
+
+        present(monkeypatch, node_cert)
+        instance.connect()
+
+        assert len(self.node_anchors(instance)) == 1
+
+    def test_the_anchor_is_loaded_once_per_pin(self, node, node_cert, monkeypatch):
+        """Connecting again must not pile the same anchor up behind it."""
+        instance = node(server_cert=node_cert)
+
+        present(monkeypatch, node_cert)
+        instance.connect()
+        instance.connect()
+
+        assert len(self.node_anchors(instance)) == 1
+
+    def test_the_stream_does_not_reload_the_anchor_per_attempt(self, node, node_cert, monkeypatch):
+        """What the reconnect loop used to do on every pass."""
+        instance = node(server_cert=node_cert)
+        reloads = []
+        monkeypatch.setattr(
+            instance._ssl_context, "load_verify_locations",
+            lambda *args, **kwargs: reloads.append(args),
+        )
+
+        connections = []
+        monkeypatch.setattr(
+            "app.xray.node.create_connection",
+            lambda url, **kwargs: connections.append(url) or (_ for _ in ()).throw(OSError("no node")),
+        )
+        monkeypatch.setattr("app.xray.node.time.sleep", lambda seconds: instance._logs_queues.clear())
+
+        instance._logs_queues.append([])
+        instance._bg_fetch_logs()
+
+        assert reloads == []
+
+
+class TestLogStreamTrustStore:
+    """The log stream must trust the pinned certificate and nothing else.
+
+    Its context used to come from ssl.create_default_context(), which loads
+    the system roots. Hostname checking is off here — a node's certificate
+    does not carry its address — so those roots were not a second opinion but
+    a hole: any certificate signed by any public CA would have been accepted
+    for a node, and whoever could answer on the node's address could serve its
+    logs. The pinned certificate is meant to be the whole of the check.
+    """
+
+    def test_nothing_is_trusted_before_a_certificate_is_pinned(self, node):
+        assert node()._ssl_context.get_ca_certs() == []
+
+    def test_the_pinned_certificate_is_the_only_anchor(self, node, node_cert):
+        anchors = node(server_cert=node_cert)._ssl_context.get_ca_certs()
+
+        assert len(anchors) == 1
+        assert anchors[0]["subject"] == ((("commonName", "Gozargah"),),)
+
+    def test_a_certificate_pinned_on_first_use_is_the_only_anchor(self, node, node_cert, monkeypatch):
+        instance = node()
+        present(monkeypatch, node_cert)
+
+        instance.connect()
+
+        assert len(instance._ssl_context.get_ca_certs()) == 1
+
+    def test_the_system_roots_are_not_loaded(self, node, node_cert):
+        """The bug in one assertion: a default context carries ~190 of these."""
+        anchors = node(server_cert=node_cert)._ssl_context.get_ca_certs()
+        issuers = {
+            value
+            for cert in anchors
+            for rdn in cert.get("issuer", ())
+            for field, value in rdn
+            if field == "organizationName"
+        }
+
+        assert issuers == set()
+
+    def test_verification_is_still_required(self, node, node_cert):
+        """An empty trust store has to mean "refuses everything", not the
+        other thing: turning verification off would make the store moot."""
+        assert node(server_cert=node_cert)._ssl_context.verify_mode == ssl.CERT_REQUIRED
+
+    def test_the_protocol_floor_is_not_lowered(self, node, node_cert):
+        """Dropping create_default_context() must not cost anything else."""
+        context = node(server_cert=node_cert)._ssl_context
+
+        assert context.minimum_version >= ssl.TLSVersion.TLSv1_2
+        assert context.options == ssl.create_default_context().options

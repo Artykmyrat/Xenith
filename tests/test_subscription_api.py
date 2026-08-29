@@ -198,6 +198,31 @@ class TestUsageIsRecorded:
         db.refresh(user)
         assert user.sub_updated_at is None
 
+    def test_asking_for_a_format_explicitly_counts_too(self, client, db, user, token):
+        """It did not: the route that takes the format in the path skipped the
+        bookkeeping entirely, so a client pinned to one showed as never having
+        fetched its configuration."""
+        client.get(f"/sub/{token}/clash-meta", headers={"user-agent": "Clash/1.0"})
+
+        db.refresh(user)
+        assert user.sub_updated_at is not None
+        assert user.sub_last_user_agent == "Clash/1.0"
+
+    @pytest.mark.parametrize("client_type", ["v2ray", "sing-box", "outline", "v2ray-json"])
+    def test_every_format_records_the_fetch(self, client, db, user, token, client_type):
+        client.get(f"/sub/{token}/{client_type}")
+
+        db.refresh(user)
+        assert user.sub_updated_at is not None
+
+    def test_the_info_endpoint_is_not_a_fetch(self, client, db, user, token):
+        """Reading the subscription's own status page is not a client pulling
+        its config, and must not look like one."""
+        client.get(f"/sub/{token}/info")
+
+        db.refresh(user)
+        assert user.sub_updated_at is None
+
 
 class TestSubscriptionInfo:
     def test_info_returns_the_user(self, client, token):
