@@ -4,7 +4,7 @@ from typing import List, Optional, Union
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from sqlalchemy.exc import IntegrityError
 
-from app import logger, xray
+from app import inbounds, logger, xray
 from app.db import Session, crud, get_db
 from app.dependencies import get_expired_users_list, get_validated_user, validate_dates
 from app.models.admin import Admin
@@ -58,7 +58,7 @@ def add_user(
     # TODO expire should be datetime instead of timestamp
 
     for proxy_type in new_user.proxies:
-        if not xray.config.inbounds_by_protocol.get(proxy_type):
+        if not inbounds.by_protocol().get(proxy_type):
             raise HTTPException(
                 status_code=400,
                 detail=f"Protocol {proxy_type.value} is disabled on your server",
@@ -112,7 +112,7 @@ def modify_user(
     """
 
     for proxy_type in modified_user.proxies:
-        if not xray.config.inbounds_by_protocol.get(proxy_type):
+        if not inbounds.by_protocol().get(proxy_type):
             raise HTTPException(
                 status_code=400,
                 detail=f"Protocol {proxy_type.value} is disabled on your server",

@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, List, Literal, Union
 
 from jdatetime import date as jd
 
-from app import xray
+from app import hysteria, xray
 from app.utils.system import get_public_ip, get_public_ipv6, readable_size
 
 from . import *
@@ -48,7 +48,33 @@ STATUS_TEXTS = {
 def generate_v2ray_links(proxies: dict, inbounds: dict, extra_data: dict, reverse: bool) -> list:
     format_variables = setup_format_variables(extra_data)
     conf = V2rayShareLink()
-    return process_inbounds_and_tags(inbounds, proxies, format_variables, conf=conf, reverse=reverse)
+    links = process_inbounds_and_tags(inbounds, proxies, format_variables, conf=conf, reverse=reverse)
+    return links + generate_hysteria_links(proxies, inbounds, format_variables)
+
+
+HYSTERIA_REMARK = "🚀 Marz ({USERNAME}) [hysteria2]"
+
+
+def generate_hysteria_links(proxies: dict, inbounds: dict, format_variables: dict) -> list:
+    """Hysteria2's own links, appended rather than threaded through the pipeline.
+
+    `process_inbounds_and_tags` builds a link per host row on an xray inbound.
+    Hysteria has neither, so it walks straight past this tag — which is why the
+    links are produced here instead of being wedged into a loop that would have
+    to be taught to skip half of itself.
+    """
+    from app.hysteria import share as hysteria_share
+    from app.models.proxy import ProxyTypes
+
+    settings = proxies.get(ProxyTypes.Hysteria2)
+    if not settings or hysteria.TAG not in inbounds.get(ProxyTypes.Hysteria2, []):
+        return []
+
+    # The Hosts screen is what names an xray link; hysteria has no row there,
+    # so the remark follows the shape of the default host template instead.
+    remark = HYSTERIA_REMARK.format_map(format_variables)
+    link = hysteria_share.link(settings, remark)
+    return [link] if link else []
 
 
 def generate_clash_subscription(

@@ -1,3 +1,4 @@
+import { TriangleAlert } from "lucide-react";
 import { FC, ReactNode, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { Blueprint } from "./Blueprint";
@@ -154,6 +155,25 @@ export const LogLines: FC<{ logs: CoreLogLine[]; maxHeight?: string; empty?: Rea
     </div>
   );
 };
+
+/** A bordered note in the accent colour: something needs attention, not action. */
+export const NoticeBox: FC<{ children: ReactNode }> = ({ children }) => (
+  <div
+    role="alert"
+    style={{
+      display: "flex",
+      alignItems: "flex-start",
+      gap: 10,
+      padding: "11px 13px",
+      border: "1px solid var(--xn-accent-600)",
+      background: "var(--xn-accent-100)",
+    }}
+  >
+    <TriangleAlert size={16} strokeWidth={1.5} color="var(--xn-accent-800)" style={{ flex: "none", marginTop: 1 }} />
+    <div style={{ fontSize: 12.5, lineHeight: 1.45, color: "var(--xn-accent-900)" }}>{children}</div>
+  </div>
+);
+
 
 /** A panel that only wraps children in the blueprint frame with standard padding. */
 export const Panel: FC<{ children: ReactNode; padding?: string; gap?: number; className?: string }> = ({

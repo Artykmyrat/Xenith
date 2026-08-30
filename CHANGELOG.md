@@ -12,6 +12,16 @@ own history starts at 0.9.0; for anything older, see the upstream changelog.
 
 ### Added
 
+- **Hysteria2**, supervised beside the xray core. It is a daemon of its own
+  rather than an xray protocol, so the panel runs a second core: its
+  configuration is rendered from `.env` on every start, its TLS certificate
+  comes from the ones certbot manages, and it authenticates by asking the panel
+  about each password instead of being handed a user list — so adding or
+  suspending a user restarts nothing. Traffic is counted into the same totals
+  and limits as xray's, users get a `hy2://` link in their subscription, and the
+  Core screen shows the daemon's state and why it is down when it is. Off until
+  `HYSTERIA_ENABLED` is set; main server only, since nodes carry xray alone.
+  See *Hysteria2* in `docs/INSTALL.md`.
 - **Core** is a screen of its own under *Configuration*, replacing the drawer
   the core configuration used to open in. It carries the editor, the version
   and state of the core, restart, and a tail of the core log.

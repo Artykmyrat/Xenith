@@ -142,7 +142,10 @@ class XRayConfig(dict):
 
     def _resolve_inbounds(self):
         for inbound in self['inbounds']:
-            if not inbound['protocol'] in ProxyTypes._value2member_map_:
+            protocol = ProxyTypes._value2member_map_.get(inbound['protocol'])
+            # A protocol the panel knows but the core does not serve — hysteria2
+            # — is not an inbound of this configuration, whatever the file says.
+            if protocol is None or not protocol.is_xray:
                 continue
 
             if inbound['tag'] in XRAY_EXCLUDE_INBOUND_TAGS:

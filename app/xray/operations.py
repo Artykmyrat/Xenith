@@ -81,6 +81,10 @@ def add_user(dbuser: "DBUser"):
     email = f"{dbuser.id}.{dbuser.username}"
 
     for proxy_type, inbound_tags in user.inbounds.items():
+        # Another daemon's protocol has no account to push over the xray API.
+        if not proxy_type.is_xray:
+            continue
+
         for inbound_tag in inbound_tags:
             inbound = xray.config.inbounds_by_tag.get(inbound_tag, {})
 
@@ -126,6 +130,10 @@ def update_user(dbuser: "DBUser"):
 
     active_inbounds = []
     for proxy_type, inbound_tags in user.inbounds.items():
+        # Another daemon's protocol has no account to push over the xray API.
+        if not proxy_type.is_xray:
+            continue
+
         for inbound_tag in inbound_tags:
             active_inbounds.append(inbound_tag)
             inbound = xray.config.inbounds_by_tag.get(inbound_tag, {})

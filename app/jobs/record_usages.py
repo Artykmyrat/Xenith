@@ -9,9 +9,10 @@ from sqlalchemy import and_, bindparam, insert, select, update
 from sqlalchemy.orm import Session
 from sqlalchemy.sql.dml import Insert
 
-from app import scheduler, xray
+from app import hysteria, scheduler, xray
 from app.db import GetDB
 from app.db.models import Admin, NodeUsage, NodeUserUsage, System, User
+from app.hysteria import stats as hysteria_stats
 from config import (
     DISABLE_RECORDING_NODE_USAGE,
     JOB_RECORD_NODE_USAGES_INTERVAL,
@@ -127,6 +128,24 @@ def get_outbounds_stats(api: XRayAPI):
         return []
 
 
+def get_hysteria_stats():
+    """The hysteria2 daemon's traffic, or nothing when it is not running."""
+    if not hysteria.is_enabled() or not hysteria.core.started:
+        return hysteria_stats.Usage()
+
+    return hysteria_stats.collect(hysteria.config.STATS_SECRET)
+
+
+def record_system_usage(up: int, down: int):
+    """Add to the panel-wide totals, outside the xray outbound accounting."""
+    if not (up or down):
+        return
+
+    with GetDB() as db:
+        stmt = update(System).values(uplink=System.uplink + up, downlink=System.downlink + down)
+        safe_execute(db, stmt)
+
+
 def record_user_usages():
     api_instances = {None: xray.api}
     usage_coefficient = {None: 1}  # default usage coefficient for the main api instance
@@ -139,6 +158,14 @@ def record_user_usages():
     with ThreadPoolExecutor(max_workers=10) as executor:
         futures = {node_id: executor.submit(get_users_stats, api) for node_id, api in api_instances.items()}
     api_params = {node_id: future.result() for node_id, future in futures.items()}
+
+    # Hysteria2 runs on the main server, so its traffic belongs to the same
+    # `None` bucket as the main core's. Read here rather than in the node job:
+    # the daemon's counters are cleared as they are read, so only one caller
+    # can have them.
+    hysteria_usage = get_hysteria_stats()
+    if hysteria_usage.users:
+        api_params[None] = api_params.get(None, []) + hysteria_usage.users
 
     users_usage = defaultdict(int)
     for node_id, params in api_params.items():
@@ -175,6 +202,11 @@ def record_user_usages():
                 where(Admin.id == bindparam('admin_id')). \
                 values(users_usage=Admin.users_usage + bindparam('value'))
             safe_execute(db, admin_update_stmt, admin_data)
+
+    # The node job records the system totals for xray by reading its outbound
+    # statistics; hysteria has no outbound to read, and its counters are gone
+    # by now, so its share is added here.
+    record_system_usage(hysteria_usage.up, hysteria_usage.down)
 
     if DISABLE_RECORDING_NODE_USAGE:
         return

@@ -289,6 +289,8 @@
   "xenith.inbounds.tag": "Tag",
   "xenith.inbounds.title": "Inbounds",
   "xenith.inbounds.transport": "Transport",
+  "xenith.hysteria.note": "a second core, on UDP port {{port}}",
+  "xenith.hysteria.title": "Hysteria2",
   "xenith.kicker.certificates": "Panel · certificates",
   "xenith.kicker.core": "Panel · core",
   "xenith.kicker.inbounds": "Panel · inbounds",

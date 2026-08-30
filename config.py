@@ -91,6 +91,31 @@ SYSCTL_CONF_PATH = config("SYSCTL_CONF_PATH", default="/etc/sysctl.d/99-xenith.c
 SYSCTL_PROC_PATH = config("SYSCTL_PROC_PATH", default="/proc/sys")
 SYSCTL_TIMEOUT = config("SYSCTL_TIMEOUT", cast=int, default=30)
 
+# Hysteria2, supervised beside the xray core rather than served by it: it is a
+# daemon of its own, with its own configuration, authentication and statistics.
+# Off by default, and main-server only — nodes carry xray alone.
+HYSTERIA_ENABLED = config("HYSTERIA_ENABLED", default=False, cast=bool)
+HYSTERIA_EXECUTABLE_PATH = config("HYSTERIA_EXECUTABLE_PATH", default="/usr/local/bin/hysteria")
+# The rendered configuration. Written on every start, so editing it by hand
+# lasts until the next one.
+HYSTERIA_CONFIG_PATH = config("HYSTERIA_CONFIG_PATH", default="/var/lib/marzban/hysteria.yaml")
+HYSTERIA_PORT = config("HYSTERIA_PORT", cast=int, default=443)
+# Which certbot certificate to serve. Empty takes the first one the panel holds,
+# which is what a single-domain install has.
+HYSTERIA_DOMAIN = config("HYSTERIA_DOMAIN", default="")
+# Salamander obfuscation. Empty leaves it off; a password turns it on, and every
+# client then needs the same one.
+HYSTERIA_OBFS_PASSWORD = config("HYSTERIA_OBFS_PASSWORD", default="")
+# Bandwidth hints, in Mbps. Zero omits them, which leaves hysteria on BBR
+# rather than its own congestion control.
+HYSTERIA_UP_MBPS = config("HYSTERIA_UP_MBPS", cast=int, default=0)
+HYSTERIA_DOWN_MBPS = config("HYSTERIA_DOWN_MBPS", cast=int, default=0)
+# What an unauthenticated visitor to the port is shown instead of an error.
+HYSTERIA_MASQUERADE_URL = config("HYSTERIA_MASQUERADE_URL", default="https://www.microsoft.com/")
+# The daemon's traffic API, which the panel polls for usage. Loopback only: the
+# secret is the whole of its authentication.
+HYSTERIA_STATS_PORT = config("HYSTERIA_STATS_PORT", cast=int, default=25413)
+
 # nginx, managed from the Nginx screen. Off by default: it edits files under
 # /etc/nginx and signals a process outside the container, which only works when
 # the compose file mounts the config directory and shares the host's PID

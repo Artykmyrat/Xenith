@@ -6,7 +6,7 @@ from typing import Dict, List, Optional, Union
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from app import xray
+from app import inbounds, xray
 from app.models.admin import Admin
 from app.models.proxy import ProxySettings, ProxyTypes
 from app.subscription.share import generate_v2ray_links
@@ -166,7 +166,7 @@ class UserCreate(User):
         excluded = {}
         for proxy_type in self.proxies:
             excluded[proxy_type] = []
-            for inbound in xray.config.inbounds_by_protocol.get(proxy_type, []):
+            for inbound in inbounds.by_protocol().get(proxy_type, []):
                 if not inbound["tag"] in self.inbounds.get(proxy_type, []):
                     excluded[proxy_type].append(inbound["tag"])
 

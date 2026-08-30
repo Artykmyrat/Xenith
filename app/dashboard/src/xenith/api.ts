@@ -292,6 +292,24 @@ export const uploadNginxFile = (file: File, path?: string) => {
 
 export const restartCore = () => fetch("/core/restart", { method: "POST" });
 
+export type HysteriaStats = {
+  enabled: boolean;
+  running: boolean;
+  version: string | null;
+  port: number;
+  /** Why it is down, when the panel can tell. Usually a missing certificate. */
+  reason: string | null;
+};
+
+/** The second core. Sudo only, so failures are swallowed. */
+export const useHysteria = () =>
+  useQuery<HysteriaStats>("xenith-hysteria", () => fetch("/hysteria"), {
+    retry: false,
+    refetchInterval: REFETCH_INTERVAL,
+  });
+
+export const restartHysteria = () => fetch("/hysteria/restart", { method: "POST" }) as Promise<HysteriaStats>;
+
 export type InboundTransport = "tcp" | "grpc" | "ws" | "xhttp";
 export type InboundSecurity = "tls" | "reality";
 

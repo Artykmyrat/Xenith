@@ -317,6 +317,54 @@ a shared machine it is not. That is why it is not the default, and why it is
 attached to the setting rather than to the main compose file.
 
 
+## Hysteria2
+
+Hysteria2 is not an xray protocol. It is a separate daemon with its own
+configuration, its own authentication and its own statistics, so the panel
+supervises it as a second core rather than gaining an inbound type. It runs on
+the main server only — nodes carry xray alone.
+
+Turning it on is `/opt/xenith/.env` plus a restart:
+
+```
+HYSTERIA_ENABLED = True
+HYSTERIA_PORT = 443
+```
+
+It needs a **TLS certificate**, which it takes from the ones certbot manages —
+so `CERTBOT_ENABLED` and an issued certificate come first. This is not a
+formality: hysteria2 is QUIC with real TLS, and the alternative that circulates
+(a self-signed pair plus `insecure=1` on every client) is exactly what makes a
+deployment easy to fingerprint. With more than one certificate on the host, name
+the one to serve with `HYSTERIA_DOMAIN`.
+
+**Where to watch it.** The Core screen grows a Hysteria2 panel once the setting
+is on: version, state, a restart button, and — when it is down — the reason.
+A missing certificate says so there rather than leaving you to read the log.
+
+**Giving it to a user.** Hysteria2 appears in the user dialog like any other
+inbound, and can be enabled or excluded per user. What the user gets is a
+`hy2://` link in their subscription, next to their xray links.
+
+**Optional hardening.** `HYSTERIA_OBFS_PASSWORD` turns on salamander
+obfuscation: a client that does not send the same password is not refused, it is
+not answered at all, so the port stops looking like anything. Every client needs
+the password, and it travels in the subscription link. `HYSTERIA_UP_MBPS` and
+`HYSTERIA_DOWN_MBPS` set the bandwidth hint — both or neither, since one alone
+reads as unlimited on the other side; left at zero, hysteria uses BBR instead of
+its own congestion control.
+
+Two limitations worth knowing before you rely on it:
+
+- Only the v2ray-style subscription carries the `hy2://` link. Clash Meta and
+  sing-box both support the protocol, but the panel does not render it into
+  those formats yet; Outline cannot carry it at all.
+- A user who exhausts a data limit or expires is refused their *next*
+  connection. The session already open stays up until it ends on its own,
+  because the daemon asks the panel about a password when a connection opens
+  and not again after that.
+
+
 ## nginx
 
 The **Nginx** screen manages the host's nginx: status and `nginx -t`, the files

@@ -3,10 +3,10 @@ import { FC, Suspense, lazy, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useQueryClient } from "react-query";
 import { useCoreSettings } from "contexts/CoreSettingsContext";
-import { InboundSecurity, InboundTransport, inboundTemplate } from "xenith/api";
+import { InboundSecurity, InboundTransport, inboundTemplate, restartHysteria, useHysteria } from "xenith/api";
 import { Blueprint } from "xenith/Blueprint";
 import { ConfirmDialog } from "xenith/ConfirmDialog";
-import { LogLines, PanelHead, PanelNote } from "xenith/panels";
+import { LogLines, NoticeBox, PanelHead, PanelNote } from "xenith/panels";
 import { useCoreLogs } from "xenith/useCoreLogs";
 
 const JsonEditor = lazy(() => import("components/JsonEditor").then((mod) => ({ default: mod.JsonEditor })));
@@ -47,6 +47,60 @@ const EditorFallback: FC = () => {
     >
       {t("xenith.coreConfig.loading")}
     </div>
+  );
+};
+
+/**
+ * Hysteria2, which is a second daemon rather than an xray protocol: it has its
+ * own configuration, its own port and its own reasons for being down. It shows
+ * here because this is the screen about cores, and stays hidden entirely while
+ * the panel is not configured for it — an empty panel would only ask questions.
+ */
+const Hysteria: FC = () => {
+  const { t } = useTranslation();
+  const toast = useToast();
+  const queryClient = useQueryClient();
+  const { data } = useHysteria();
+  const [restarting, setRestarting] = useState(false);
+
+  if (!data?.enabled) return null;
+
+  const onRestart = () => {
+    setRestarting(true);
+    restartHysteria()
+      .then((result) => {
+        queryClient.setQueryData("xenith-hysteria", result);
+        if (result.reason) {
+          toast({ title: result.reason, status: "error", position: "top", duration: 6000, isClosable: true });
+        }
+      })
+      .catch(() => undefined)
+      .finally(() => setRestarting(false));
+  };
+
+  return (
+    <Blueprint style={{ padding: "18px 20px", display: "flex", flexDirection: "column", gap: 12 }}>
+      <PanelHead
+        title={t("xenith.hysteria.title")}
+        note={t("xenith.hysteria.note", { port: data.port })}
+        trailing={
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            {data.version && <span className="xn-tag xn-tag-outline xn-mono">v{data.version}</span>}
+            <span className={`xn-tag ${data.running ? "xn-tag-accent" : "xn-tag-neutral"}`}>
+              {data.running ? t("xenith.running") : t("xenith.stopped")}
+            </span>
+            <button className="xn-btn" style={{ fontSize: 12.5 }} onClick={onRestart} disabled={restarting}>
+              {t(restarting ? "core.restarting" : "core.restartCore")}
+            </button>
+          </div>
+        }
+      />
+      {data.reason && (
+        <NoticeBox>
+          <span>{data.reason}</span>
+        </NoticeBox>
+      )}
+    </Blueprint>
   );
 };
 
@@ -267,6 +321,8 @@ export const Core: FC = () => {
           </button>
         </div>
       </Blueprint>
+
+      <Hysteria />
 
       <Blueprint style={{ padding: "18px 20px", display: "flex", flexDirection: "column", gap: 12 }}>
         <PanelHead title={t("xenith.coreConfig.logs")} note={t("xenith.coreConfig.logsNote")} />

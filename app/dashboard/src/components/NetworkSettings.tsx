@@ -21,7 +21,7 @@ import {
 } from "xenith/api";
 import { Blueprint } from "xenith/Blueprint";
 import { ConfirmDialog } from "xenith/ConfirmDialog";
-import { PanelEmpty, PanelHead, PanelNote } from "xenith/panels";
+import { NoticeBox, PanelEmpty, PanelHead, PanelNote } from "xenith/panels";
 
 type Draft = Record<string, string>;
 
@@ -30,29 +30,6 @@ const describe = (err: any, fallback: string) => err?.response?._data?.detail ||
 /** A short, plain hint about the shape a value has to take. */
 const placeholderFor = (tunable: Tunable) =>
   tunable.kind === "ints" ? tunable.baseline : tunable.kind === "text" ? "name" : "0";
-
-const NoticeBox: FC<{ tone?: "warn"; children: React.ReactNode }> = ({ children }) => (
-  <div
-    role="alert"
-    style={{
-      display: "flex",
-      alignItems: "flex-start",
-      gap: 10,
-      padding: "11px 13px",
-      border: "1px solid var(--xn-accent-600)",
-      background: "var(--xn-accent-100)",
-    }}
-  >
-    <TriangleAlert
-      size={16}
-      strokeWidth={1.5}
-      color="var(--xn-accent-800)"
-      style={{ flex: "none", marginTop: 1 }}
-    />
-    <div style={{ fontSize: 12.5, lineHeight: 1.45, color: "var(--xn-accent-900)" }}>{children}</div>
-  </div>
-);
-
 
 /** Formats an rlimit, where null means the kernel imposes no limit at all. */
 const formatLimit = (value: number | null, unlimited: string) =>

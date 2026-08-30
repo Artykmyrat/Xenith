@@ -29,6 +29,20 @@ class ProxyTypes(str, Enum):
     VLESS = "vless"
     Trojan = "trojan"
     Shadowsocks = "shadowsocks"
+    # Not an xray protocol: hysteria2 is a daemon of its own, supervised beside
+    # the core. It has no account to push over the xray API, which is what
+    # `account_model` is for and why this one has none.
+    Hysteria2 = "hysteria2"
+
+    @property
+    def is_xray(self) -> bool:
+        """Whether the core carries this protocol, as opposed to another daemon.
+
+        Every path that talks to the xray API asks this first: an account for a
+        protocol xray does not serve would be pushed into a core that has no
+        inbound to put it in.
+        """
+        return self is not self.Hysteria2
 
     @property
     def account_model(self):
@@ -51,6 +65,8 @@ class ProxyTypes(str, Enum):
             return TrojanSettings
         if self == self.Shadowsocks:
             return ShadowsocksSettings
+        if self == self.Hysteria2:
+            return Hysteria2Settings
 
 
 class ProxySettings(BaseModel, use_enum_values=True):
@@ -90,6 +106,20 @@ class TrojanSettings(ProxySettings):
 class ShadowsocksSettings(ProxySettings):
     password: str = Field(default_factory=random_password)
     method: ShadowsocksMethods = ShadowsocksMethods.CHACHA20_POLY1305
+
+    def revoke(self):
+        self.password = random_password()
+
+
+class Hysteria2Settings(ProxySettings):
+    """What a user presents to the hysteria2 daemon.
+
+    Hysteria authenticates with a single string. The panel keeps it here and
+    answers the daemon's auth callback with it, so revoking is a matter of
+    replacing the password rather than restarting anything.
+    """
+
+    password: str = Field(default_factory=random_password)
 
     def revoke(self):
         self.password = random_password()

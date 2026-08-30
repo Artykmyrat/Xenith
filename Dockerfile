@@ -26,6 +26,16 @@ RUN apt-get update \
     && curl -L https://github.com/Gozargah/Marzban-scripts/raw/master/install_latest_xray.sh | bash \
     && rm -rf /var/lib/apt/lists/*
 
+# Hysteria2 is a second daemon, not an xray protocol, so it comes as its own
+# binary. Pinned like everything else here; the release tag really does carry a
+# slash. The panel only runs it when HYSTERIA_ENABLED is set, so an image that
+# carries it is not an image that serves it.
+ARG TARGETARCH=amd64
+ARG HYSTERIA_VERSION=v2.12.2
+RUN curl -fsSL -o /usr/local/bin/hysteria \
+    "https://github.com/HyNetworks/hysteria/releases/download/app/${HYSTERIA_VERSION}/hysteria-linux-${TARGETARCH}" \
+    && chmod +x /usr/local/bin/hysteria
+
 COPY ./requirements.txt /code/
 RUN python3 -m pip install --upgrade pip setuptools \
     && pip install --no-cache-dir --upgrade -r /code/requirements.txt

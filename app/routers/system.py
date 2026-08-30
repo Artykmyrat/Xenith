@@ -3,7 +3,7 @@ from typing import Dict, List, Union
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from app import __version__, xray
+from app import __version__, inbounds, xray
 from app.db import Session, crud, get_db
 from app.models.admin import Admin
 from app.models.proxy import ProxyHost, ProxyInbound, ProxyTypes
@@ -94,7 +94,7 @@ def get_system_usage_series(
 @router.get("/inbounds", response_model=Dict[ProxyTypes, List[ProxyInbound]])
 def get_inbounds(admin: Admin = Depends(Admin.get_current)):
     """Retrieve inbound configurations grouped by protocol."""
-    return xray.config.inbounds_by_protocol
+    return inbounds.by_protocol()
 
 
 @router.get(
