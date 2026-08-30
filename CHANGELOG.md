@@ -23,6 +23,10 @@ own history starts at 0.9.0; for anything older, see the upstream changelog.
 
 ### Fixed
 
+- The core log no longer drags the page down as it streams. It followed its
+  own tail with `scrollIntoView`, which scrolls the window as well, so every
+  arriving line pulled the configuration editor above it out of view. The tail
+  now scrolls itself, and stops following once the reader scrolls up in it.
 - Certificates read from certbot 5 list the names they cover again. That
   release renamed the `Domains:` line of `certbot certificates` to
   `Identifiers:`, and the panel, still looking for the old spelling, showed

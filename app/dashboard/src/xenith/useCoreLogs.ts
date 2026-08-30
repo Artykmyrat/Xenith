@@ -48,7 +48,9 @@ export const useCoreLogs = (limit: number) => {
             const match = LOG_RE.exec(line);
             return {
               id: start + index,
-              time: match?.[2] || "",
+              // The access log stamps microseconds, which are six digits of
+              // noise in a column this narrow; seconds is what the tail is read for.
+              time: (match?.[2] || "").split(".")[0],
               level: (match?.[3] || "INFO").toUpperCase(),
               text: match?.[4] || line,
             };

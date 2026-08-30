@@ -104,30 +104,45 @@ export const LogLines: FC<{ logs: CoreLogLine[]; maxHeight?: string; empty?: Rea
   maxHeight = "62vh",
   empty,
 }) => {
-  const endRef = useRef<HTMLDivElement>(null);
+  const boxRef = useRef<HTMLDivElement>(null);
+  // Following the tail is only wanted while the reader is at the tail. Scrolling
+  // up to read something is a decision the next line should not undo.
+  const following = useRef(true);
 
   useEffect(() => {
-    endRef.current?.scrollIntoView({ block: "end" });
+    const box = boxRef.current;
+    if (!box || !following.current) return;
+    // Moving this box's own scrollTop rather than scrollIntoView, which scrolls
+    // every scrollable ancestor it needs to: under the core configuration this
+    // log sits below the editor, and each arriving line dragged the whole page
+    // down with it, mid-edit.
+    box.scrollTop = box.scrollHeight;
   }, [logs.length]);
+
+  const onScroll = () => {
+    const box = boxRef.current;
+    if (!box) return;
+    following.current = box.scrollHeight - box.scrollTop - box.clientHeight < 24;
+  };
 
   if (logs.length === 0) return <PanelEmpty>{empty}</PanelEmpty>;
 
   return (
-    <div style={{ maxHeight, overflowY: "auto" }}>
+    <div ref={boxRef} onScroll={onScroll} style={{ maxHeight, overflowY: "auto" }}>
       {logs.map((line) => (
         <div
           key={line.id}
           className="xn-mono"
           style={{
             display: "grid",
-            gridTemplateColumns: "74px 92px 1fr",
+            gridTemplateColumns: "68px 92px 1fr",
             gap: 16,
             padding: "7px 0",
             borderTop: "1px solid var(--xn-neutral-200)",
             fontSize: 12,
           }}
         >
-          <span style={{ color: "var(--xn-neutral-500)" }}>{line.time}</span>
+          <span style={{ color: "var(--xn-neutral-500)", whiteSpace: "nowrap" }}>{line.time}</span>
           <span style={{ letterSpacing: "0.06em", color: LEVEL_COLORS[line.level] || "var(--xn-accent-700)" }}>
             {line.level}
           </span>
@@ -136,7 +151,6 @@ export const LogLines: FC<{ logs: CoreLogLine[]; maxHeight?: string; empty?: Rea
           </span>
         </div>
       ))}
-      <div ref={endRef} />
     </div>
   );
 };
