@@ -230,6 +230,7 @@ export const NetworkSettings: FC = () => {
   const [filter, setFilter] = useState("");
   const [busy, setBusy] = useState(false);
   const [failures, setFailures] = useState<{ key: string; message: string }[]>([]);
+  const [waiting, setWaiting] = useState<{ key: string; message: string }[]>([]);
   const [saving, setSaving] = useState(false);
   const [profileName, setProfileName] = useState("");
   const [profileNote, setProfileNote] = useState("");
@@ -260,6 +261,7 @@ export const NetworkSettings: FC = () => {
 
   const report = (result: NetworkApplyResult, title: string) => {
     setFailures(result.failed);
+    setWaiting(result.skipped ?? []);
     setDraft({});
     refresh();
     toast({
@@ -283,6 +285,7 @@ export const NetworkSettings: FC = () => {
   const run = (work: Promise<NetworkApplyResult>, title: string) => {
     setBusy(true);
     setFailures([]);
+    setWaiting([]);
     work
       .then((result) => report(result, title))
       .catch(fail)
@@ -412,6 +415,22 @@ export const NetworkSettings: FC = () => {
               ))}
             </div>
           </NoticeBox>
+        )}
+
+        {/* Waiting on a module is not a warning: the value is saved and the
+            kernel picks it up on its own. Said once, quietly, and not in the
+            box that means something needs attention. */}
+        {waiting.length > 0 && (
+          <PanelNote>
+            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              <span>{t("xenith.network.waiting")}</span>
+              {waiting.map((entry) => (
+                <span key={entry.key} className="xn-mono" style={{ fontSize: 11.5 }}>
+                  {entry.key} — {entry.message}
+                </span>
+              ))}
+            </div>
+          </PanelNote>
         )}
 
         {/* Interfaces, for context only: the panel never reconfigures them. */}
@@ -592,6 +611,14 @@ export const NetworkSettings: FC = () => {
                             <span className="xn-tag xn-tag-neutral">{t("xenith.network.customised")}</span>
                           )}
                           {dirty && <span className="xn-tag xn-tag-accent">{t("xenith.network.edited")}</span>}
+                          {/* The value below is the saved intention, not a
+                              reading: say so on the row rather than letting a
+                              number stand for something the kernel never saw. */}
+                          {setting.live === false && setting.module && (
+                            <span className="xn-tag xn-tag-neutral">
+                              {t("xenith.network.needsModule", { module: setting.module })}
+                            </span>
+                          )}
                         </div>
                         <span style={{ fontSize: 11.5, lineHeight: 1.45, color: "var(--xn-neutral-600)" }}>
                           {setting.description}

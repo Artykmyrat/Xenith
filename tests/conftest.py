@@ -353,3 +353,41 @@ def nginx_runs(monkeypatch):
 
     monkeypatch.setattr(nginx.subprocess, "run", fake_run)
     return calls
+
+
+@pytest.fixture
+def hysteria_settings(monkeypatch):
+    """The hysteria2 settings the code under test sees, without a database.
+
+    These used to be module constants and each test patched the ones it cared
+    about. They are a row now, so the seam is the reader: `current()` is
+    replaced with one that answers from a value the test can move.
+
+    Returns a callable — `hysteria_settings(port=8443)` — which applies a
+    change and hands back the settings now in force.
+    """
+    import dataclasses
+
+    from app.hysteria import settings as module
+
+    state = {
+        "value": module.Settings(
+            enabled=False,
+            port=443,
+            domain=None,
+            obfs_password=None,
+            up_mbps=0,
+            down_mbps=0,
+            masquerade_url="https://www.microsoft.com/",
+            stats_port=25413,
+            extra=None,
+        )
+    }
+
+    monkeypatch.setattr(module, "current", lambda: state["value"])
+
+    def change(**fields):
+        state["value"] = dataclasses.replace(state["value"], **fields)
+        return state["value"]
+
+    return change

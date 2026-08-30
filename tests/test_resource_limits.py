@@ -261,16 +261,32 @@ class TestApplyHostLimits:
     def test_a_broken_daemon_json_is_refused_rather_than_overwritten(self, host, nofile):
         host["docker"].write_text("{not json")
 
-        with pytest.raises(limits.LimitsError, match="not valid JSON"):
-            limits.apply_host_limits()
+        report = limits.apply_host_limits()
 
+        assert any("not valid JSON" in problem for problem in report.problems)
         assert host["docker"].read_text() == "{not json"
+
+    def test_a_broken_daemon_json_does_not_cost_the_other_two_files(self, host, nofile):
+        """One file's problem is that file's alone.
+
+        The Docker default is the one an admin is least able to act on and the
+        one most likely to be already occupied; failing the whole request over
+        it would withhold the systemd default, which is what actually governs
+        the panel's own container.
+        """
+        host["docker"].write_text("{not json")
+
+        report = limits.apply_host_limits()
+
+        assert set(report.written) == {str(host["limits"]), str(host["systemd"])}
 
     def test_a_daemon_json_holding_a_list_is_refused(self, host, nofile):
         host["docker"].write_text("[]")
 
-        with pytest.raises(limits.LimitsError, match="JSON object"):
-            limits.apply_host_limits()
+        report = limits.apply_host_limits()
+
+        assert any("JSON object" in problem for problem in report.problems)
+        assert host["docker"].read_text() == "[]"
 
     def test_nothing_is_written_while_disabled(self, host, monkeypatch):
         monkeypatch.setattr(limits, "ULIMIT_ENABLED", False)
@@ -280,18 +296,50 @@ class TestApplyHostLimits:
 
         assert not any(path.exists() for path in host.values())
 
-    def test_a_missing_directory_is_reported_before_anything_is_written(self, host, monkeypatch):
+    def test_a_missing_drop_in_directory_is_created(self, host, nofile, tmp_path, monkeypatch):
+        """/etc/systemd/system.conf.d need not exist yet.
+
+        It is a drop-in directory: systemd reads it, but a host has no reason to
+        carry one until something puts a file in it. Refusing to write there
+        because it is absent is refusing to do the one thing that was asked.
+        """
+        absent = tmp_path / "fresh/systemd/system.conf.d/99-xenith.conf"
+        monkeypatch.setattr(limits, "ULIMIT_SYSTEMD_CONF_PATH", str(absent))
+
+        report = limits.apply_host_limits()
+
+        assert absent.exists()
+        assert str(absent) in report.written
+        assert not report.problems
+
+    def test_an_unreachable_path_is_a_problem_rather_than_a_failure(self, host, monkeypatch):
         monkeypatch.setattr(limits, "ULIMIT_SYSTEMD_CONF_PATH", "/nonexistent/xenith.conf")
 
-        with pytest.raises(limits.LimitsError, match="does not exist"):
-            limits.apply_host_limits()
+        report = limits.apply_host_limits()
 
-        assert not host["limits"].exists()
+        assert any("/nonexistent" in problem for problem in report.problems)
+        # The other two were still written.
+        assert host["limits"].exists()
+        assert host["docker"].exists()
 
     def test_an_unwritable_directory_is_reported(self, host, monkeypatch, tmp_path):
         locked = tmp_path / "locked"
         locked.mkdir(mode=0o500)
         monkeypatch.setattr(limits, "ULIMIT_LIMITS_CONF_PATH", str(locked / "xenith.conf"))
+
+        report = limits.apply_host_limits()
+
+        assert any("not writable" in problem for problem in report.problems)
+        assert host["systemd"].exists()
+
+        os.chmod(locked, 0o700)
+
+    def test_everything_out_of_reach_is_still_a_failure(self, host, monkeypatch, tmp_path):
+        """When not one of the three can be written, that is worth raising over."""
+        locked = tmp_path / "locked"
+        locked.mkdir(mode=0o500)
+        for name in ("ULIMIT_LIMITS_CONF_PATH", "ULIMIT_SYSTEMD_CONF_PATH", "ULIMIT_DOCKER_DAEMON_PATH"):
+            monkeypatch.setattr(limits, name, str(locked / "xenith.conf"))
 
         with pytest.raises(limits.LimitsError, match="not writable"):
             limits.apply_host_limits()

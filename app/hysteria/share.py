@@ -9,21 +9,22 @@ reach it, so a link is a short function rather than a configuration.
 from typing import Dict, Optional
 from urllib.parse import quote, urlencode
 
-from config import (HYSTERIA_DOMAIN, HYSTERIA_OBFS_PASSWORD, HYSTERIA_PORT,
-                    XRAY_SUBSCRIPTION_URL_PREFIX)
+from app.hysteria import settings as hysteria_settings
+from config import XRAY_SUBSCRIPTION_URL_PREFIX
 
 
 def address() -> str:
     """The host clients connect to.
 
     It has to be a name the certificate covers, since hysteria2 is QUIC with
-    real TLS and a client will check it. HYSTERIA_DOMAIN says which; without
-    one, the panel's own subscription domain is the best guess available, and
-    an empty answer is better than a wrong one — a link nobody can build is
-    easier to notice than a link that fails to verify.
+    real TLS and a client will check it. The domain in the settings says which;
+    without one, the panel's own subscription domain is the best guess
+    available, and an empty answer is better than a wrong one — a link nobody
+    can build is easier to notice than a link that fails to verify.
     """
-    if HYSTERIA_DOMAIN:
-        return HYSTERIA_DOMAIN
+    settings = hysteria_settings.current()
+    if settings.domain:
+        return settings.domain
 
     prefix = XRAY_SUBSCRIPTION_URL_PREFIX
     if prefix:
@@ -40,14 +41,16 @@ def link(settings: Dict, remark: str) -> Optional[str]:
     if not password or not host:
         return None
 
+    live = hysteria_settings.current()
+
     query = {"sni": host}
-    if HYSTERIA_OBFS_PASSWORD:
+    if live.obfs_password:
         # A client that does not send the same obfuscation password is not
         # rejected — it is not answered at all, so this is not optional.
         query["obfs"] = "salamander"
-        query["obfs-password"] = HYSTERIA_OBFS_PASSWORD
+        query["obfs-password"] = live.obfs_password
 
     return (
-        f"hy2://{quote(str(password), safe='')}@{host}:{HYSTERIA_PORT}"
+        f"hy2://{quote(str(password), safe='')}@{host}:{live.port}"
         f"?{urlencode(query)}#{quote(remark, safe='')}"
     )

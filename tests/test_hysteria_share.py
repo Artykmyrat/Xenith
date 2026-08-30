@@ -17,18 +17,16 @@ from app.subscription import share as subscription_share
 
 
 @pytest.fixture(autouse=True)
-def enabled(monkeypatch):
-    monkeypatch.setattr(hysteria, "HYSTERIA_ENABLED", True)
-    monkeypatch.setattr(hysteria_share, "HYSTERIA_DOMAIN", "vpn.example.com")
-    monkeypatch.setattr(hysteria_share, "HYSTERIA_OBFS_PASSWORD", "")
-    monkeypatch.setattr(hysteria_share, "HYSTERIA_PORT", 443)
+def enabled(hysteria_settings):
+    hysteria_settings(enabled=True, domain="vpn.example.com", obfs_password=None, port=443)
+    return hysteria_settings
 
 
 class TestTheInbound:
-    def test_it_is_offered_only_while_the_daemon_is_configured(self, monkeypatch):
+    def test_it_is_offered_only_while_the_daemon_is_configured(self, hysteria_settings):
         assert hysteria.inbound()["tag"] == hysteria.TAG
 
-        monkeypatch.setattr(hysteria, "HYSTERIA_ENABLED", False)
+        hysteria_settings(enabled=False)
         assert hysteria.inbound() is None
 
     def test_it_joins_the_inbounds_the_panel_offers(self):
@@ -76,23 +74,23 @@ class TestTheLink:
 
         assert "obfs" not in query
 
-    def test_obfuscation_reaches_the_client(self, monkeypatch):
+    def test_obfuscation_reaches_the_client(self, hysteria_settings):
         # A client without the password is not refused, it is ignored, so the
         # link is the only way it ever learns this.
-        monkeypatch.setattr(hysteria_share, "HYSTERIA_OBFS_PASSWORD", "salt")
+        hysteria_settings(obfs_password="salt")
 
         query = parse_qs(urlparse(hysteria_share.link({"password": "pw"}, "a")).query)
 
         assert query["obfs"] == ["salamander"] and query["obfs-password"] == ["salt"]
 
-    def test_no_address_means_no_link(self, monkeypatch):
-        monkeypatch.setattr(hysteria_share, "HYSTERIA_DOMAIN", "")
+    def test_no_address_means_no_link(self, hysteria_settings, monkeypatch):
+        hysteria_settings(domain=None)
         monkeypatch.setattr(hysteria_share, "XRAY_SUBSCRIPTION_URL_PREFIX", "")
 
         assert hysteria_share.link({"password": "pw"}, "alice") is None
 
-    def test_the_panel_domain_stands_in_for_an_unset_one(self, monkeypatch):
-        monkeypatch.setattr(hysteria_share, "HYSTERIA_DOMAIN", "")
+    def test_the_panel_domain_stands_in_for_an_unset_one(self, hysteria_settings, monkeypatch):
+        hysteria_settings(domain=None)
         monkeypatch.setattr(hysteria_share, "XRAY_SUBSCRIPTION_URL_PREFIX", "https://panel.example.com:2053")
 
         assert urlparse(hysteria_share.link({"password": "pw"}, "a")).hostname == "panel.example.com"

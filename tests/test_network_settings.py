@@ -263,9 +263,19 @@ class TestApply:
         assert [key for key, _ in result.failed] == ["vm.swappiness", "kernel.sysrq"]
         assert result.applied == {}
 
-    def test_a_key_this_kernel_does_not_expose_is_reported_per_key(self, enabled, proc, conf, monkeypatch):
-        # br_netfilter is not loaded on most hosts until something bridges, and
-        # sysctl names the proc path rather than the key when it is missing.
+    def test_a_key_whose_module_is_not_loaded_is_skipped_rather_than_failed(
+        self, enabled, proc, conf, monkeypatch
+    ):
+        """br_netfilter is absent on any host that has not bridged anything yet.
+
+        That is not a refusal and must not be reported as one: an admin who is
+        warned every time they press Apply stops reading the warnings, and the
+        next one will be a permission problem that actually matters.
+        """
+        # The fixture lays down every key; take this one away so the host looks
+        # like one where the module has not loaded.
+        (proc / "net/bridge/bridge-nf-call-iptables").unlink()
+
         failing_sysctl(
             monkeypatch,
             "sysctl: cannot stat /proc/sys/net/bridge/bridge-nf-call-iptables: "
@@ -273,12 +283,49 @@ class TestApply:
         )
 
         result = sysctl.apply(
-            {"vm.swappiness": "1", "net.bridge.bridge-nf-call-iptables": "0"}
+            {"vm.swappiness": "1", "net.bridge.bridge-nf-call-iptables": "1"}
         )
 
         assert result.applied == {"vm.swappiness": "1"}
+        assert result.failed == []
+        assert [key for key, _ in result.skipped] == ["net.bridge.bridge-nf-call-iptables"]
+        assert "br_netfilter" in result.skipped[0][1]
+
+    def test_a_module_backed_key_the_kernel_does_expose_is_a_real_failure(
+        self, enabled, proc, conf, monkeypatch
+    ):
+        """The excuse only holds while the module is genuinely missing.
+
+        Once /proc/sys carries the key, a refusal is a refusal — a container
+        without the capability to write it, most likely — and must be reported
+        as one.
+        """
+        # Left in place by the fixture: the module is loaded on this host.
+        assert (proc / "net/bridge/bridge-nf-call-iptables").exists()
+
+        failing_sysctl(
+            monkeypatch,
+            'sysctl: permission denied on key "net.bridge.bridge-nf-call-iptables"\n',
+        )
+
+        result = sysctl.apply({"net.bridge.bridge-nf-call-iptables": "1"})
+
+        assert result.skipped == []
         assert [key for key, _ in result.failed] == ["net.bridge.bridge-nf-call-iptables"]
-        assert "does not expose" in result.failed[0][1]
+
+    def test_a_key_outside_the_catalogue_that_is_missing_is_still_a_failure(
+        self, enabled, proc, conf, monkeypatch
+    ):
+        """Only keys the catalogue marks as module-backed get the quiet treatment."""
+        failing_sysctl(
+            monkeypatch,
+            "sysctl: cannot stat /proc/sys/vm/swappiness: No such file or directory\n",
+        )
+
+        result = sysctl.apply({"vm.swappiness": "1"})
+
+        assert result.skipped == []
+        assert [key for key, _ in result.failed] == ["vm.swappiness"]
 
     def test_a_missing_key_outside_the_catalogue_still_names_a_key(self, enabled, proc, conf, monkeypatch):
         failing_sysctl(monkeypatch, "sysctl: cannot stat /proc/sys/net/made/up: No such file\n")

@@ -467,8 +467,14 @@ class TestResourceLimits:
         assert body["raised"] == ["nofile"]
         assert any("ULIMIT_ENABLED" in problem for problem in body["problems"])
 
-    def test_with_nothing_to_do_at_all_it_is_a_400(self, client, sudo_admin, monkeypatch):
-        """Already at the maximum and unable to write: say so rather than claim success."""
+    def test_with_nothing_to_do_at_all_it_says_why(self, client, sudo_admin, monkeypatch):
+        """Already at the maximum and unable to write the host files.
+
+        Not an error. A panel whose descriptor limit is already at the ceiling
+        has nothing left to raise, and reporting that as a failed request sends
+        an admin looking for a problem that is not there. The reason the host
+        files were skipped is what they actually need to see.
+        """
         from app.utils import limits as rlimits
 
         # Pinned below whatever this machine is running, so there is nothing to raise.
@@ -476,5 +482,7 @@ class TestResourceLimits:
 
         response = client.post("/api/network/limits/raise", headers=auth(sudo_admin))
 
-        assert response.status_code == 400
-        assert "ULIMIT_ENABLED" in response.json()["detail"]
+        assert response.status_code == 200
+        body = response.json()
+        assert body["raised"] == []
+        assert any("ULIMIT_ENABLED" in problem for problem in body["problems"])

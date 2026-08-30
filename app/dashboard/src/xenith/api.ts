@@ -127,6 +127,10 @@ export type Tunable = {
   baseline: string;
   value: string;
   customised: boolean;
+  /** The kernel module this key needs before it exists at all, when it needs one. */
+  module: string | null;
+  /** False when the value shown is what the managed file asks for rather than what the kernel holds. */
+  live: boolean;
 };
 
 export type NetworkSection = { id: string; title: string; settings: Tunable[] };
@@ -145,6 +149,8 @@ export type NetworkSettings = {
 export type NetworkApplyResult = {
   applied: string[];
   failed: { key: string; message: string }[];
+  /** Written and waiting on a kernel module, rather than refused. Not a warning. */
+  skipped: { key: string; message: string }[];
   settings: NetworkSettings;
 };
 
@@ -309,6 +315,54 @@ export const useHysteria = () =>
   });
 
 export const restartHysteria = () => fetch("/hysteria/restart", { method: "POST" }) as Promise<HysteriaStats>;
+
+export type HysteriaSettings = {
+  enabled: boolean;
+  port: number;
+  domain: string | null;
+  obfs_password: string | null;
+  up_mbps: number;
+  down_mbps: number;
+  masquerade_url: string;
+  stats_port: number;
+  /** Anything hysteria understands that the panel does not model. */
+  extra: Record<string, any> | null;
+  updated_at: string | null;
+
+  running: boolean;
+  version: string | null;
+  reason: string | null;
+  /** The file the daemon would start with; null when it cannot be rendered. */
+  config: string | null;
+  /** Certificate names certbot holds, to pick a domain from. */
+  certificates: string[];
+  /** Keys `extra` may not carry, because the panel writes them itself. */
+  reserved_keys: string[];
+};
+
+/** Only the fields sent are changed, so a cleared box has to be sent as null. */
+export type HysteriaSettingsPatch = Partial<
+  Pick<
+    HysteriaSettings,
+    | "enabled"
+    | "port"
+    | "domain"
+    | "obfs_password"
+    | "up_mbps"
+    | "down_mbps"
+    | "masquerade_url"
+    | "stats_port"
+    | "extra"
+  >
+>;
+
+export const useHysteriaSettings = () =>
+  useQuery<HysteriaSettings>("xenith-hysteria-settings", () => fetch("/hysteria/settings"), {
+    retry: false,
+  });
+
+export const saveHysteriaSettings = (body: HysteriaSettingsPatch) =>
+  fetch("/hysteria/settings", { method: "PUT", body }) as Promise<HysteriaSettings>;
 
 export type InboundTransport = "tcp" | "grpc" | "ws" | "xhttp";
 export type InboundSecurity = "tls" | "reality";

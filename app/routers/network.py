@@ -43,6 +43,11 @@ def _current_settings() -> NetworkSettings:
                 baseline=tunable.baseline,
                 value=values[tunable.key],
                 customised=values[tunable.key] != tunable.baseline,
+                module=tunable.module,
+                # Whether the number shown was read from the kernel or is only
+                # what the managed file asks for. They differ exactly when a
+                # module has yet to load.
+                live=sysctl.read_value(tunable) is not None,
             )
             for tunable in TUNABLES
             if tunable.section == section
@@ -89,6 +94,7 @@ def _apply(settings: Dict[str, str]) -> NetworkApplyResult:
     return NetworkApplyResult(
         applied=sorted(result.applied),
         failed=[TunableFailure(key=key, message=message) for key, message in result.failed],
+        skipped=[TunableFailure(key=key, message=message) for key, message in result.skipped],
         settings=_current_settings(),
     )
 
@@ -295,11 +301,13 @@ def raise_resource_limits(admin: Admin = Depends(Admin.check_sudo_admin)):
     try:
         report = rlimits.apply_host_limits()
     except rlimits.LimitsError as err:
-        # Even with the host files unavailable, this process can still be lifted.
-        own = rlimits.raise_own_limits()
-        if not own.raised:
-            raise HTTPException(status_code=400, detail=str(err))
-        report = own
+        # The host files are out of reach entirely — the feature is off, or
+        # nothing under /etc can be written. This process's own limit is a
+        # separate question with its own answer, so the reason is reported
+        # alongside that answer rather than replacing it: a panel already at
+        # its ceiling would otherwise report a plain failure for a request
+        # that had nothing left to do.
+        report = rlimits.raise_own_limits()
         report.problems.append(str(err))
 
     written = [

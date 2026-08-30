@@ -196,17 +196,17 @@ class TestState:
     def test_no_credentials_is_rejected(self, client):
         assert client.get("/api/hysteria").status_code == 401
 
-    def test_a_panel_without_hysteria_says_so(self, client, sudo_admin, monkeypatch):
-        monkeypatch.setattr(hysteria, "HYSTERIA_ENABLED", False)
+    def test_a_panel_without_hysteria_says_so(self, client, sudo_admin, hysteria_settings, monkeypatch):
+        hysteria_settings(enabled=False)
 
         body = client.get("/api/hysteria", headers=auth(sudo_admin)).json()
 
         assert body["enabled"] is False and body["running"] is False
 
-    def test_a_daemon_that_cannot_start_explains_itself(self, client, sudo_admin, monkeypatch):
+    def test_a_daemon_that_cannot_start_explains_itself(self, client, sudo_admin, hysteria_settings, monkeypatch):
         # The dashboard shows this instead of a bare "stopped", because the
         # answer is almost always a certificate nobody has issued yet.
-        monkeypatch.setattr(hysteria, "HYSTERIA_ENABLED", True)
+        hysteria_settings(enabled=True)
         monkeypatch.setattr(certbot, "CERTBOT_ENABLED", False)
 
         body = client.get("/api/hysteria", headers=auth(sudo_admin)).json()
@@ -215,8 +215,8 @@ class TestState:
         assert body["running"] is False
         assert "CERTBOT_ENABLED" in body["reason"]
 
-    def test_restarting_a_disabled_daemon_does_nothing(self, client, sudo_admin, monkeypatch):
-        monkeypatch.setattr(hysteria, "HYSTERIA_ENABLED", False)
+    def test_restarting_a_disabled_daemon_does_nothing(self, client, sudo_admin, hysteria_settings, monkeypatch):
+        hysteria_settings(enabled=False)
         started = []
         monkeypatch.setattr(hysteria.core, "restart", lambda: started.append(True))
 
@@ -224,8 +224,8 @@ class TestState:
 
         assert started == []
 
-    def test_a_restart_that_fails_is_reported_in_the_body(self, client, sudo_admin, monkeypatch):
-        monkeypatch.setattr(hysteria, "HYSTERIA_ENABLED", True)
+    def test_a_restart_that_fails_is_reported_in_the_body(self, client, sudo_admin, hysteria_settings, monkeypatch):
+        hysteria_settings(enabled=True)
 
         def no_certificate():
             raise HysteriaConfigError("no certificate")

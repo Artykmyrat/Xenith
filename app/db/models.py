@@ -410,3 +410,39 @@ class NetworkProfile(Base):
     builtin = Column(Boolean, nullable=False, default=False, server_default='0')
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, nullable=True)
+
+
+class HysteriaSettings(Base):
+    """How the hysteria2 daemon is configured, as one row.
+
+    In the database rather than in .env because these are settings an admin
+    changes: a port moves, a certificate is reissued, obfuscation is turned on
+    after the fact. Every one of those used to mean editing a file on the host
+    and rebuilding the container, which is a lot of ceremony for a number.
+
+    The .env variables are still read, and are what this row is seeded from on
+    the first upgrade, so an installation that already set them keeps behaving
+    exactly as it did.
+    """
+
+    __tablename__ = "hysteria_settings"
+
+    id = Column(Integer, primary_key=True)
+    enabled = Column(Boolean, nullable=False, default=False, server_default='0')
+    port = Column(Integer, nullable=False, default=443)
+    # Which certbot certificate to serve. NULL takes the first one the panel
+    # holds, which is what a single-domain install has.
+    domain = Column(String(253), nullable=True)
+    # Salamander obfuscation. NULL or empty leaves it off.
+    obfs_password = Column(String(128), nullable=True)
+    # Bandwidth hints in Mbps. Zero omits them, which leaves hysteria on BBR.
+    up_mbps = Column(Integer, nullable=False, default=0)
+    down_mbps = Column(Integer, nullable=False, default=0)
+    masquerade_url = Column(String(512), nullable=False, default="https://www.microsoft.com/")
+    stats_port = Column(Integer, nullable=False, default=25413)
+    # Anything the panel does not model, merged into the rendered file. The
+    # keys the panel owns are refused before this is stored — see
+    # app/hysteria/settings.py — so this can add to the configuration but
+    # cannot quietly take authentication out of it.
+    extra = Column(JSON, nullable=True)
+    updated_at = Column(DateTime, nullable=True)

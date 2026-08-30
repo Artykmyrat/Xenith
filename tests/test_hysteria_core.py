@@ -127,36 +127,36 @@ class TestHealthCheck:
     """What keeps a crashed daemon from staying down, called on a timer."""
 
     @staticmethod
-    def run(monkeypatch, *, enabled, core):
+    def run(monkeypatch, hysteria_settings, *, enabled, core):
         from app import hysteria
 
-        monkeypatch.setattr(hysteria, "HYSTERIA_ENABLED", enabled)
+        hysteria_settings(enabled=enabled)
         monkeypatch.setattr(hysteria, "core", core)
         hysteria.ensure_running()
 
-    def test_a_stopped_daemon_is_started_again(self, monkeypatch, core, spawned):
-        self.run(monkeypatch, enabled=True, core=core)
+    def test_a_stopped_daemon_is_started_again(self, monkeypatch, hysteria_settings, core, spawned):
+        self.run(monkeypatch, hysteria_settings, enabled=True, core=core)
 
         assert core.started is True
 
-    def test_nothing_runs_while_the_feature_is_off(self, monkeypatch, core, spawned):
-        self.run(monkeypatch, enabled=False, core=core)
+    def test_nothing_runs_while_the_feature_is_off(self, monkeypatch, hysteria_settings, core, spawned):
+        self.run(monkeypatch, hysteria_settings, enabled=False, core=core)
 
         assert core.started is False
 
-    def test_a_running_daemon_is_left_alone(self, monkeypatch, core, spawned):
+    def test_a_running_daemon_is_left_alone(self, monkeypatch, hysteria_settings, core, spawned):
         core.start()
 
-        self.run(monkeypatch, enabled=True, core=core)
+        self.run(monkeypatch, hysteria_settings, enabled=True, core=core)
 
         assert len(spawned) == 1
 
-    def test_a_failure_to_start_is_reported_not_raised(self, monkeypatch, core, spawned):
+    def test_a_failure_to_start_is_reported_not_raised(self, monkeypatch, hysteria_settings, core, spawned):
         def no_certificate():
             raise HysteriaConfigError("no certificate")
 
         monkeypatch.setattr(hysteria_config, "write", no_certificate)
 
-        self.run(monkeypatch, enabled=True, core=core)
+        self.run(monkeypatch, hysteria_settings, enabled=True, core=core)
 
         assert core.started is False

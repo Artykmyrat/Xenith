@@ -324,35 +324,49 @@ configuration, its own authentication and its own statistics, so the panel
 supervises it as a second core rather than gaining an inbound type. It runs on
 the main server only — nodes carry xray alone.
 
-Turning it on is `/opt/xenith/.env` plus a restart:
-
-```
-HYSTERIA_ENABLED = True
-HYSTERIA_PORT = 443
-```
+**Turning it on** is the switch on the Core screen. Nothing to edit on the
+host and nothing to restart: the panel starts the daemon, and turning the switch
+off stops it.
 
 It needs a **TLS certificate**, which it takes from the ones certbot manages —
 so `CERTBOT_ENABLED` and an issued certificate come first. This is not a
 formality: hysteria2 is QUIC with real TLS, and the alternative that circulates
 (a self-signed pair plus `insecure=1` on every client) is exactly what makes a
-deployment easy to fingerprint. With more than one certificate on the host, name
-the one to serve with `HYSTERIA_DOMAIN`.
+deployment easy to fingerprint. With more than one certificate on the host, pick
+the one to serve from the Certificate list on the same screen.
 
-**Where to watch it.** The Core screen grows a Hysteria2 panel once the setting
-is on: version, state, a restart button, and — when it is down — the reason.
-A missing certificate says so there rather than leaving you to read the log.
+**Where everything else lives.** The Core screen carries the port, the
+certificate, obfuscation, the bandwidth hints, the masquerade URL and the
+traffic API port, plus the rendered configuration read-only underneath. Saving
+restarts the daemon, which drops the connections open on it — the screen says
+so. The state, the version and, when it is down, the reason sit in the panel's
+header; a missing certificate says so there rather than leaving you to read the
+log.
+
+These settings live in the database, not in `.env`. The `HYSTERIA_*` variables
+still exist and are what a fresh installation is seeded with, but once the
+migration has run the panel is the place to change them — editing `.env`
+afterwards has no effect. `HYSTERIA_EXECUTABLE_PATH` and `HYSTERIA_CONFIG_PATH`
+are the exception: they describe the host rather than the deployment, and stay
+in `.env`.
 
 **Giving it to a user.** Hysteria2 appears in the user dialog like any other
 inbound, and can be enabled or excluded per user. What the user gets is a
 `hy2://` link in their subscription, next to their xray links.
 
-**Optional hardening.** `HYSTERIA_OBFS_PASSWORD` turns on salamander
-obfuscation: a client that does not send the same password is not refused, it is
-not answered at all, so the port stops looking like anything. Every client needs
-the password, and it travels in the subscription link. `HYSTERIA_UP_MBPS` and
-`HYSTERIA_DOWN_MBPS` set the bandwidth hint — both or neither, since one alone
-reads as unlimited on the other side; left at zero, hysteria uses BBR instead of
-its own congestion control.
+**Optional hardening.** The obfuscation password turns on salamander: a client
+that does not send the same password is not refused, it is not answered at all,
+so the port stops looking like anything. Every client needs the password, and it
+travels in the subscription link. The bandwidth hints are both or neither, since
+one alone reads as unlimited on the other side; left at zero, hysteria uses BBR
+instead of its own congestion control.
+
+**Anything the screen does not cover** goes in the Extra configuration box, as
+JSON merged into the rendered file — `udpIdleTimeout`, `quic`, `resolver` and
+the rest of what hysteria understands. Four keys are refused there because the
+panel writes them itself: `listen`, `tls`, `auth` and `trafficStats`. `auth` is
+the one that matters — overriding it would unhook every user from the traffic
+they generate, and nothing on the screen would look wrong.
 
 Two limitations worth knowing before you rely on it:
 

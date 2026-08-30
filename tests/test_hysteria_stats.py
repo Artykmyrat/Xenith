@@ -124,11 +124,11 @@ class TestRecordingIt:
         )
 
     @pytest.fixture(autouse=True)
-    def running(self, monkeypatch, db):
+    def running(self, monkeypatch, hysteria_settings, db):
         """A hysteria that is on and running, and an xray with nothing to say."""
         monkeypatch.setattr(xray, "nodes", {})
         monkeypatch.setattr(xray, "api", FakeAPI())
-        monkeypatch.setattr(hysteria, "HYSTERIA_ENABLED", True)
+        hysteria_settings(enabled=True)
         monkeypatch.setattr(type(hysteria.core), "started", property(lambda self: True))
         db.add(System(uplink=0, downlink=0))
         db.commit()
@@ -168,8 +168,8 @@ class TestRecordingIt:
 
         assert db.query(User).get(user.id).used_traffic == 1000
 
-    def test_the_daemon_is_not_polled_while_the_feature_is_off(self, db, user, monkeypatch):
-        monkeypatch.setattr(hysteria, "HYSTERIA_ENABLED", False)
+    def test_the_daemon_is_not_polled_while_the_feature_is_off(self, db, user, hysteria_settings, monkeypatch):
+        hysteria_settings(enabled=False)
         calls = answers(monkeypatch, {f"{user.id}.alice": {"tx": 300, "rx": 700}})
 
         run(record_usages.record_user_usages, db)

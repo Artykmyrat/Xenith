@@ -10,7 +10,7 @@ it marks a value as customised.
 """
 
 from dataclasses import dataclass
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 
 # Section id -> title shown in the dashboard, in display order.
 SECTIONS: Tuple[Tuple[str, str], ...] = (
@@ -39,6 +39,11 @@ class Tunable:
     kind: str
     baseline: str
     description: str
+    # The kernel module that has to be loaded before this key exists at all.
+    # None for the ordinary case of a key the kernel always exposes. Set, it
+    # means an absent key is a fact about the host rather than a refusal, and
+    # the panel says so instead of warning about it.
+    module: Optional[str] = None
 
     @property
     def proc_path(self) -> str:
@@ -46,8 +51,15 @@ class Tunable:
         return self.key.replace(".", "/")
 
 
-def _t(key, section, kind, baseline, description) -> Tunable:
-    return Tunable(key=key, section=section, kind=kind, baseline=baseline, description=description)
+def _t(key, section, kind, baseline, description, module=None) -> Tunable:
+    return Tunable(
+        key=key,
+        section=section,
+        kind=kind,
+        baseline=baseline,
+        description=description,
+        module=module,
+    )
 
 
 TUNABLES: Tuple[Tunable, ...] = (
@@ -143,29 +155,29 @@ TUNABLES: Tuple[Tunable, ...] = (
 
     # --- Connection tracking -------------------------------------------------
     _t("net.netfilter.nf_conntrack_max", "conntrack", "int", "262144",
-       "Connections the firewall tracks at once. Too low drops traffic under load."),
+       "Connections the firewall tracks at once. Too low drops traffic under load.", module="nf_conntrack"),
     _t("net.netfilter.nf_conntrack_buckets", "conntrack", "int", "65536",
-       "Hash buckets for the tracking table. Around a quarter of the maximum."),
+       "Hash buckets for the tracking table. Around a quarter of the maximum.", module="nf_conntrack"),
     _t("net.netfilter.nf_conntrack_tcp_timeout_established", "conntrack", "int", "3600",
-       "Seconds an idle established connection is remembered."),
+       "Seconds an idle established connection is remembered.", module="nf_conntrack"),
     _t("net.netfilter.nf_conntrack_tcp_timeout_close_wait", "conntrack", "int", "30",
-       "Seconds a connection is remembered in CLOSE-WAIT."),
+       "Seconds a connection is remembered in CLOSE-WAIT.", module="nf_conntrack"),
     _t("net.netfilter.nf_conntrack_tcp_timeout_time_wait", "conntrack", "int", "30",
-       "Seconds a connection is remembered in TIME-WAIT."),
+       "Seconds a connection is remembered in TIME-WAIT.", module="nf_conntrack"),
     _t("net.netfilter.nf_conntrack_tcp_timeout_fin_wait", "conntrack", "int", "30",
-       "Seconds a connection is remembered in FIN-WAIT."),
+       "Seconds a connection is remembered in FIN-WAIT.", module="nf_conntrack"),
     _t("net.netfilter.nf_conntrack_tcp_timeout_last_ack", "conntrack", "int", "15",
-       "Seconds a connection is remembered in LAST-ACK."),
+       "Seconds a connection is remembered in LAST-ACK.", module="nf_conntrack"),
     _t("net.netfilter.nf_conntrack_tcp_timeout_syn_recv", "conntrack", "int", "15",
-       "Seconds a half-open inbound connection is remembered."),
+       "Seconds a half-open inbound connection is remembered.", module="nf_conntrack"),
     _t("net.netfilter.nf_conntrack_tcp_timeout_syn_sent", "conntrack", "int", "30",
-       "Seconds a half-open outbound connection is remembered."),
+       "Seconds a half-open outbound connection is remembered.", module="nf_conntrack"),
     _t("net.netfilter.nf_conntrack_tcp_timeout_close", "conntrack", "int", "5",
-       "Seconds a closed connection is remembered."),
+       "Seconds a closed connection is remembered.", module="nf_conntrack"),
     _t("net.netfilter.nf_conntrack_udp_timeout", "conntrack", "int", "15",
-       "Seconds a one-way UDP flow is remembered."),
+       "Seconds a one-way UDP flow is remembered.", module="nf_conntrack"),
     _t("net.netfilter.nf_conntrack_udp_timeout_stream", "conntrack", "int", "60",
-       "Seconds a two-way UDP flow is remembered."),
+       "Seconds a two-way UDP flow is remembered.", module="nf_conntrack"),
 
     # --- Network security ----------------------------------------------------
     _t("net.ipv4.tcp_syncookies", "security", "int", "1",
@@ -206,8 +218,18 @@ TUNABLES: Tuple[Tunable, ...] = (
        "Forward packets between interfaces. Required to route proxied traffic."),
     _t("net.ipv4.ip_nonlocal_bind", "routing", "int", "1",
        "Let services bind addresses the host does not hold yet."),
-    _t("net.bridge.bridge-nf-call-iptables", "routing", "int", "0",
-       "Send bridged frames through iptables. Off keeps bridge traffic out of the filter path."),
+    # 1, not 0, and not a free choice on a host that runs containers. Docker
+    # publishes ports and isolates its bridge networks with iptables rules that
+    # only see bridged frames while this is on; the Docker daemon sets it to 1
+    # itself at startup, and turning it off silently takes those rules out of
+    # the path. The panel ships inside a container on such a host, so shipping
+    # 0 as the baseline meant every "apply the built-in profile" was one
+    # `modprobe br_netfilter` away from breaking the host's container
+    # networking.
+    _t("net.bridge.bridge-nf-call-iptables", "routing", "int", "1",
+       "Send bridged frames through iptables. Docker needs this on to filter and publish "
+       "container ports; turn it off only on a host that runs no containers.",
+       module="br_netfilter"),
 
     # --- ICMP ----------------------------------------------------------------
     _t("net.ipv4.icmp_echo_ignore_all", "icmp", "int", "1",

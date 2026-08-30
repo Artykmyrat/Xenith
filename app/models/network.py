@@ -15,6 +15,12 @@ class TunableResponse(BaseModel):
     baseline: str
     value: str
     customised: bool
+    # The module this key needs before the kernel exposes it at all, when it
+    # needs one. With `live` false, the pair is what lets the dashboard say
+    # "waiting for br_netfilter" instead of showing a number that is really
+    # only a stored intention.
+    module: Optional[str] = None
+    live: bool = True
 
 
 class NetworkSection(BaseModel):
@@ -61,10 +67,13 @@ class TunableFailure(BaseModel):
 
 
 class NetworkApplyResult(BaseModel):
-    """What the kernel accepted, and what it refused and why."""
+    """What the kernel accepted, what it refused, and what it has yet to see."""
 
     applied: List[str]
     failed: List[TunableFailure] = []
+    # Written and waiting on a kernel module, rather than refused. Its own
+    # field so the dashboard can report it without the tone of a warning.
+    skipped: List[TunableFailure] = []
     settings: NetworkSettings
 
 

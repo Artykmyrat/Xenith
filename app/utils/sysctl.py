@@ -58,6 +58,16 @@ MISSING_KEY = (
     "if the module appears."
 )
 
+# Said about a key the catalogue already knows is module-backed. The same
+# situation as MISSING_KEY, but an expected one rather than a surprise, which
+# is why it is reported apart from the refusals: a host with no br_netfilter
+# loaded is an ordinary host, and warning about it on every save trains an
+# admin to ignore the one warning that will matter.
+MODULE_ABSENT = (
+    "Waiting for the {module} module. The value is in the managed file and the "
+    "kernel takes it up as soon as the module loads."
+)
+
 HEADER = (
     "# Managed by Xenith. Edited from the panel's System settings screen;\n"
     "# anything written here by hand is replaced on the next save.\n"
@@ -72,6 +82,10 @@ class SysctlError(Exception):
 class ApplyResult:
     applied: Dict[str, str]
     failed: List[Tuple[str, str]] = field(default_factory=list)
+    # Keys the kernel does not expose because their module is not loaded. Not
+    # failures: the value is written and waiting, and nothing is wrong with the
+    # host. Kept apart from `failed` so the dashboard can say so quietly.
+    skipped: List[Tuple[str, str]] = field(default_factory=list)
 
 
 def is_enabled() -> bool:
@@ -230,6 +244,26 @@ def _load_conf() -> List[Tuple[str, str]]:
     return failures
 
 
+def _split_failures(failures: List[Tuple[str, str]]) -> Tuple[List[Tuple[str, str]], List[Tuple[str, str]]]:
+    """Separate the refusals worth warning about from the ones that are routine.
+
+    A key the catalogue marks as module-backed, which the kernel is not
+    exposing, has not been refused in any meaningful sense — the module simply
+    is not loaded. Reporting that as a failure alongside a genuine permission
+    problem makes the genuine one harder to see.
+    """
+    failed, skipped = [], []
+
+    for key, message in failures:
+        tunable = BY_KEY.get(key)
+        if tunable is not None and tunable.module and read_value(tunable) is None:
+            skipped.append((key, MODULE_ABSENT.format(module=tunable.module)))
+        else:
+            failed.append((key, message))
+
+    return failed, skipped
+
+
 def apply(values: Dict[str, object]) -> ApplyResult:
     """Validate, persist and apply a full set of values."""
     allowed, reason = writable()
@@ -238,12 +272,13 @@ def apply(values: Dict[str, object]) -> ApplyResult:
 
     validated = validate_many(values)
     _write_conf(render(validated))
-    failures = _load_conf()
+    failed, skipped = _split_failures(_load_conf())
 
-    refused = {key for key, _ in failures}
+    untaken = {key for key, _ in failed} | {key for key, _ in skipped}
     return ApplyResult(
-        applied={key: value for key, value in validated.items() if key not in refused},
-        failed=failures,
+        applied={key: value for key, value in validated.items() if key not in untaken},
+        failed=failed,
+        skipped=skipped,
     )
 
 

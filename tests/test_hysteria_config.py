@@ -35,13 +35,10 @@ def certificates(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
-def plain_settings(monkeypatch):
+def plain_settings(hysteria_settings, monkeypatch):
     """The defaults, so each test turns on only the thing it is about."""
-    monkeypatch.setattr(hysteria, "HYSTERIA_DOMAIN", "")
-    monkeypatch.setattr(hysteria, "HYSTERIA_OBFS_PASSWORD", "")
-    monkeypatch.setattr(hysteria, "HYSTERIA_UP_MBPS", 0)
-    monkeypatch.setattr(hysteria, "HYSTERIA_DOWN_MBPS", 0)
     monkeypatch.setattr(hysteria, "UVICORN_SSL_CERTFILE", None)
+    return hysteria_settings
 
 
 class TestCertificate:
@@ -53,16 +50,16 @@ class TestCertificate:
             "key": "/etc/letsencrypt/live/panel.example.com/privkey.pem",
         }
 
-    def test_a_named_domain_picks_its_certificate(self, monkeypatch):
+    def test_a_named_domain_picks_its_certificate(self, hysteria_settings, monkeypatch):
         monkeypatch.setattr(
             certbot, "list_certificates", lambda: [certificate(), certificate("vpn.example.com", ["vpn.example.com"])]
         )
-        monkeypatch.setattr(hysteria, "HYSTERIA_DOMAIN", "vpn.example.com")
+        hysteria_settings(domain="vpn.example.com")
 
         assert "vpn.example.com" in hysteria.render()["tls"]["cert"]
 
-    def test_a_domain_no_certificate_covers_is_refused(self, monkeypatch):
-        monkeypatch.setattr(hysteria, "HYSTERIA_DOMAIN", "other.example.com")
+    def test_a_domain_no_certificate_covers_is_refused(self, hysteria_settings, monkeypatch):
+        hysteria_settings(domain="other.example.com")
 
         with pytest.raises(HysteriaConfigError, match="other.example.com"):
             hysteria.render()
@@ -102,22 +99,21 @@ class TestOptionalParts:
     def test_obfuscation_is_left_out_until_it_has_a_password(self):
         assert "obfs" not in hysteria.render()
 
-    def test_a_password_turns_salamander_on(self, monkeypatch):
-        monkeypatch.setattr(hysteria, "HYSTERIA_OBFS_PASSWORD", "s3cret")
+    def test_a_password_turns_salamander_on(self, hysteria_settings, monkeypatch):
+        hysteria_settings(obfs_password="s3cret")
 
         assert hysteria.render()["obfs"] == {"type": "salamander", "salamander": {"password": "s3cret"}}
 
     def test_no_bandwidth_hint_by_default(self):
         assert "bandwidth" not in hysteria.render()
 
-    def test_both_directions_are_needed_for_a_hint(self, monkeypatch):
-        monkeypatch.setattr(hysteria, "HYSTERIA_UP_MBPS", 100)
+    def test_both_directions_are_needed_for_a_hint(self, hysteria_settings, monkeypatch):
+        hysteria_settings(up_mbps=100)
 
         assert "bandwidth" not in hysteria.render()
 
-    def test_a_full_pair_is_passed_through(self, monkeypatch):
-        monkeypatch.setattr(hysteria, "HYSTERIA_UP_MBPS", 100)
-        monkeypatch.setattr(hysteria, "HYSTERIA_DOWN_MBPS", 200)
+    def test_a_full_pair_is_passed_through(self, hysteria_settings, monkeypatch):
+        hysteria_settings(up_mbps=100, down_mbps=200)
 
         assert hysteria.render()["bandwidth"] == {"up": "100 mbps", "down": "200 mbps"}
 
@@ -140,8 +136,8 @@ class TestWriting:
 
         assert yaml.safe_load(open(path)) == hysteria.render()
 
-    def test_the_file_keeps_its_secrets_to_itself(self, tmp_path, monkeypatch):
-        monkeypatch.setattr(hysteria, "HYSTERIA_OBFS_PASSWORD", "s3cret")
+    def test_the_file_keeps_its_secrets_to_itself(self, hysteria_settings, tmp_path, monkeypatch):
+        hysteria_settings(obfs_password="s3cret")
 
         path = hysteria.write(str(tmp_path / "hysteria.yaml"))
 

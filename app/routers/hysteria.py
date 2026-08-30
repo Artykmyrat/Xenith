@@ -14,17 +14,19 @@ in front of the panel makes every request look local, and one that does not set
 """
 
 import ipaddress
+from typing import Optional
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 
 from app import hysteria
 from app.db import Session, get_db
 from app.hysteria import auth as hysteria_auth
+from app.hysteria import settings as hysteria_settings
 from app.models.admin import Admin
 from app.models.hysteria import (HysteriaAuthRequest, HysteriaAuthResponse,
-                                 HysteriaStats)
-from app.utils import responses
-from config import HYSTERIA_PORT
+                                 HysteriaSettingsModify,
+                                 HysteriaSettingsResponse, HysteriaStats)
+from app.utils import certbot, responses
 
 router = APIRouter(tags=["Hysteria"], prefix="/api")
 
@@ -64,24 +66,79 @@ def hysteria_auth_callback(
     return HysteriaAuthResponse(ok=True, id=identity)
 
 
-def _stats() -> HysteriaStats:
-    running = hysteria.is_enabled() and hysteria.core.started
-    reason = None
+def _why_not_running() -> Optional[str]:
+    """Why the daemon is down, when the panel can tell.
 
-    if hysteria.is_enabled() and not running:
-        # Rendering the configuration is what fails when something is missing,
-        # so asking for it is how the panel finds out what to say.
-        try:
-            hysteria.config.render()
-        except hysteria.HysteriaConfigError as err:
-            reason = str(err)
+    Rendering the configuration is what fails when something is missing, so
+    asking for it is how the panel finds out what to say. A missing certificate
+    is the usual answer and one the Certificates screen can act on.
+    """
+    try:
+        hysteria.config.render()
+    except hysteria.HysteriaConfigError as err:
+        return str(err)
+    return None
+
+
+def _stats() -> HysteriaStats:
+    live = hysteria_settings.current()
+    running = live.enabled and hysteria.core.started
 
     return HysteriaStats(
-        enabled=hysteria.is_enabled(),
+        enabled=live.enabled,
         running=running,
         version=hysteria.core.version if running else None,
-        port=HYSTERIA_PORT,
+        port=live.port,
+        reason=_why_not_running() if live.enabled and not running else None,
+    )
+
+
+def _certificate_names() -> list:
+    """Certificate names to choose a domain from, or nothing at all.
+
+    Best effort: certbot being unavailable is already reported through
+    `reason`, and failing the whole settings request over it would leave the
+    screen blank at the moment it is most needed.
+    """
+    if not certbot.is_enabled():
+        return []
+    try:
+        return sorted(c.name for c in certbot.list_certificates() if c.certificate_path)
+    except certbot.CertbotError:
+        return []
+
+
+def _settings_response() -> HysteriaSettingsResponse:
+    live = hysteria_settings.current()
+    running = live.enabled and hysteria.core.started
+
+    # Rendered whether or not the daemon is on: an admin setting hysteria up
+    # wants to see the file before turning it on, and the reason it will not
+    # render is the same reason it would not start.
+    try:
+        config = hysteria.config.preview(live)
+        reason = None
+    except hysteria.HysteriaConfigError as err:
+        config = None
+        reason = str(err)
+
+    return HysteriaSettingsResponse(
+        enabled=live.enabled,
+        port=live.port,
+        domain=live.domain,
+        obfs_password=live.obfs_password,
+        up_mbps=live.up_mbps,
+        down_mbps=live.down_mbps,
+        masquerade_url=live.masquerade_url or "",
+        stats_port=live.stats_port,
+        extra=live.extra,
+        updated_at=live.updated_at,
+        running=running,
+        version=hysteria.core.version if running else None,
         reason=reason,
+        config=config,
+        certificates=_certificate_names(),
+        reserved_keys=list(hysteria_settings.RESERVED_KEYS),
     )
 
 
@@ -105,7 +162,70 @@ def restart_hysteria(admin: Admin = Depends(Admin.check_sudo_admin)):
         hysteria.core.restart()
     except Exception as err:
         return HysteriaStats(
-            enabled=True, running=hysteria.core.started, port=HYSTERIA_PORT, reason=str(err)
+            enabled=True,
+            running=hysteria.core.started,
+            port=hysteria_settings.current().port,
+            reason=str(err),
         )
 
     return _stats()
+
+
+@router.get(
+    "/hysteria/settings",
+    response_model=HysteriaSettingsResponse,
+    responses={403: responses._403},
+)
+def get_hysteria_settings(admin: Admin = Depends(Admin.check_sudo_admin)):
+    """How the daemon is configured, what it would be started with, and its state."""
+    return _settings_response()
+
+
+@router.put(
+    "/hysteria/settings",
+    response_model=HysteriaSettingsResponse,
+    responses={400: responses._400, 403: responses._403},
+)
+def modify_hysteria_settings(
+    modified: HysteriaSettingsModify,
+    db: Session = Depends(get_db),
+    admin: Admin = Depends(Admin.check_sudo_admin),
+):
+    """Change the settings and bring the daemon into line with them.
+
+    The configuration is rendered when the daemon starts, so a change means a
+    restart — done here rather than left as a second button, because settings
+    that are stored but not running are the thing an admin is least likely to
+    notice. Turning hysteria off stops it; turning it on starts it; changing a
+    port while it is running restarts it onto the new one.
+
+    A daemon that will not come back up is reported through `reason` rather
+    than raised: the settings were saved, and refusing the request would say
+    otherwise.
+    """
+    changes = modified.model_dump(exclude_unset=True)
+    if not changes:
+        return _settings_response()
+
+    try:
+        live = hysteria_settings.save(db, **changes)
+    except hysteria_settings.HysteriaSettingsError as err:
+        raise HTTPException(status_code=400, detail=str(err))
+    except hysteria_settings.HysteriaSchemaError as err:
+        # Not a 400: there is nothing wrong with what was sent, and nothing the
+        # admin can change in the form to make it work.
+        raise HTTPException(status_code=503, detail=str(err))
+
+    try:
+        if not live.enabled:
+            hysteria.core.stop()
+        elif hysteria.core.started:
+            hysteria.core.restart()
+        else:
+            hysteria.core.start()
+    except Exception:
+        # Left to _settings_response, which asks the configuration itself why
+        # rather than repeating whatever the process happened to raise.
+        pass
+
+    return _settings_response()

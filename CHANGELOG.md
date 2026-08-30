@@ -13,15 +13,27 @@ own history starts at 0.9.0; for anything older, see the upstream changelog.
 ### Added
 
 - **Hysteria2**, supervised beside the xray core. It is a daemon of its own
-  rather than an xray protocol, so the panel runs a second core: its
-  configuration is rendered from `.env` on every start, its TLS certificate
-  comes from the ones certbot manages, and it authenticates by asking the panel
-  about each password instead of being handed a user list — so adding or
-  suspending a user restarts nothing. Traffic is counted into the same totals
-  and limits as xray's, users get a `hy2://` link in their subscription, and the
-  Core screen shows the daemon's state and why it is down when it is. Off until
-  `HYSTERIA_ENABLED` is set; main server only, since nodes carry xray alone.
-  See *Hysteria2* in `docs/INSTALL.md`.
+  rather than an xray protocol, so the panel runs a second core: its TLS
+  certificate comes from the ones certbot manages, and it authenticates by
+  asking the panel about each password instead of being handed a user list — so
+  adding or suspending a user restarts nothing. Traffic is counted into the same
+  totals and limits as xray's, and users get a `hy2://` link in their
+  subscription. Main server only, since nodes carry xray alone. See *Hysteria2*
+  in `docs/INSTALL.md`.
+- **Hysteria2 is configured from the Core screen**, not from `.env`. The switch
+  that turns it on, the port, the certificate, obfuscation, the bandwidth hints,
+  the masquerade URL and the traffic API port are all settings an admin changes,
+  and every one of them used to mean editing a file on the host and rebuilding
+  the container. They are a row in the database now: saving stores them and
+  restarts the daemon, turning the switch off stops it, and the rendered
+  configuration is shown read-only underneath so what the panel believes is what
+  you can read. Anything the screen does not model goes in an Extra
+  configuration box as JSON, except `listen`, `tls`, `auth` and `trafficStats`,
+  which the panel writes itself and refuses to let a merge take over — `auth`
+  most of all, since overriding it would unhook every user from the traffic they
+  generate with nothing on screen looking wrong. The `HYSTERIA_*` variables
+  still seed the row on first upgrade, so an installation that had already
+  configured hysteria comes up on exactly the settings it was running.
 - **Core** is a screen of its own under *Configuration*, replacing the drawer
   the core configuration used to open in. It carries the editor, the version
   and state of the core, restart, and a tail of the core log.
@@ -32,6 +44,26 @@ own history starts at 0.9.0; for anything older, see the upstream changelog.
   WebSocket is refused, since xray does not carry it.
 
 ### Fixed
+
+- *Raise to maximum* no longer fails on a host with no
+  `/etc/systemd/system.conf.d`. It is a drop-in directory that a host has no
+  reason to carry until something puts a file in one, and the panel now creates
+  it. Each of the three host files is written on its own too, so a missing
+  `/etc/docker` or an occupied `daemon.json` costs that file and not the other
+  two, and a panel already at its descriptor ceiling reports what it skipped
+  instead of returning an error for a request that had nothing left to do.
+- Applying the built-in kernel profile no longer warns about
+  `net.bridge.bridge-nf-call-iptables`. A parameter whose module is not loaded
+  is an ordinary state, not a refusal, and it is now reported quietly and apart
+  from the refusals that do need attention — with the row itself saying which
+  module it is waiting for. The same applies to the `nf_conntrack` parameters.
+- **The built-in kernel profile no longer breaks Docker networking.** It shipped
+  `net.bridge.bridge-nf-call-iptables = 0`, and Docker publishes ports and
+  isolates its bridge networks with iptables rules that only see bridged frames
+  while that is `1` — which the Docker daemon sets for itself at startup. On a
+  host where `br_netfilter` was not loaded the setting did nothing and simply
+  waited in the managed file; the moment anything loaded the module, it would
+  have taken those rules out of the path. The baseline is `1` now.
 
 - The core log no longer drags the page down as it streams. It followed its
   own tail with `scrollIntoView`, which scrolls the window as well, so every

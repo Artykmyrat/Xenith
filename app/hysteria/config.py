@@ -2,7 +2,8 @@
 
 Rendered from the panel's settings on every start rather than kept as a file an
 admin edits: what the daemon runs then always matches what the panel believes
-it runs, and there is one place — .env — where the answer lives.
+it runs, and there is one place — app/hysteria/settings.py — where the answer
+lives.
 
 Three parts are decisions rather than plumbing, and each is written down where
 it is made: the certificate comes from certbot, so there is no self-signed
@@ -17,11 +18,9 @@ from typing import Dict, Optional
 
 import yaml
 
+from app.hysteria import settings as hysteria_settings
 from app.utils import certbot
-from config import (HYSTERIA_CONFIG_PATH, HYSTERIA_DOMAIN, HYSTERIA_DOWN_MBPS,
-                    HYSTERIA_MASQUERADE_URL, HYSTERIA_OBFS_PASSWORD,
-                    HYSTERIA_PORT, HYSTERIA_STATS_PORT, HYSTERIA_UP_MBPS,
-                    UVICORN_PORT, UVICORN_SSL_CERTFILE)
+from config import HYSTERIA_CONFIG_PATH, UVICORN_PORT, UVICORN_SSL_CERTFILE
 
 # Regenerated per process. The daemon is handed it in its configuration and the
 # panel keeps it in memory, so a restart of either invalidates nothing that
@@ -35,7 +34,7 @@ class HysteriaConfigError(Exception):
     """The daemon cannot be configured; the message is safe to show."""
 
 
-def _certificate() -> tuple:
+def _certificate(domain: Optional[str] = None) -> tuple:
     """The certificate the daemon presents: (certificate path, key path).
 
     Hysteria2 is QUIC with real TLS, so it needs a certificate a client will
@@ -60,13 +59,13 @@ def _certificate() -> tuple:
             "Hysteria2 needs a TLS certificate. Issue one on the Certificates screen."
         )
 
-    if HYSTERIA_DOMAIN:
+    if domain:
         for certificate in usable:
-            if HYSTERIA_DOMAIN == certificate.name or HYSTERIA_DOMAIN in certificate.domains:
+            if domain == certificate.name or domain in certificate.domains:
                 return certificate.certificate_path, certificate.private_key_path
         raise HysteriaConfigError(
-            f"No certificate covers {HYSTERIA_DOMAIN}. Issue one, or clear HYSTERIA_DOMAIN "
-            "to use the certificate the panel already holds."
+            f"No certificate covers {domain}. Issue one, or clear the domain on the Core "
+            "screen to use the certificate the panel already holds."
         )
 
     certificate = usable[0]
@@ -86,12 +85,13 @@ def auth_url() -> str:
     return f"{scheme}://127.0.0.1:{UVICORN_PORT}{AUTH_PATH}"
 
 
-def render() -> Dict:
+def render(settings=None) -> Dict:
     """The daemon's configuration, as the structure that becomes its YAML."""
-    certificate_path, key_path = _certificate()
+    settings = settings or hysteria_settings.current()
+    certificate_path, key_path = _certificate(settings.domain)
 
     config: Dict = {
-        "listen": f":{HYSTERIA_PORT}",
+        "listen": f":{settings.port}",
         "tls": {"cert": certificate_path, "key": key_path},
         "auth": {
             "type": "http",
@@ -99,29 +99,54 @@ def render() -> Dict:
         },
         # Polled for usage; `clear=1` on read is what makes the counters
         # deltas, which is what the panel records.
-        "trafficStats": {"listen": f"127.0.0.1:{HYSTERIA_STATS_PORT}", "secret": STATS_SECRET},
-        # A port that answers like a website is a port that looks like one.
-        "masquerade": {
-            "type": "proxy",
-            "proxy": {"url": HYSTERIA_MASQUERADE_URL, "rewriteHost": True},
-        },
+        "trafficStats": {"listen": f"127.0.0.1:{settings.stats_port}", "secret": STATS_SECRET},
     }
 
-    if HYSTERIA_OBFS_PASSWORD:
+    # A port that answers like a website is a port that looks like one. Left
+    # out entirely when there is no URL, rather than pointed at nothing.
+    if settings.masquerade_url:
+        config["masquerade"] = {
+            "type": "proxy",
+            "proxy": {"url": settings.masquerade_url, "rewriteHost": True},
+        }
+
+    if settings.obfs_password:
         config["obfs"] = {
             "type": "salamander",
-            "salamander": {"password": HYSTERIA_OBFS_PASSWORD},
+            "salamander": {"password": settings.obfs_password},
         }
 
     # Both or neither: hysteria reads one missing side as unlimited, and a
     # half-filled pair is a slower tunnel than none at all.
-    if HYSTERIA_UP_MBPS and HYSTERIA_DOWN_MBPS:
+    if settings.up_mbps and settings.down_mbps:
         config["bandwidth"] = {
-            "up": f"{HYSTERIA_UP_MBPS} mbps",
-            "down": f"{HYSTERIA_DOWN_MBPS} mbps",
+            "up": f"{settings.up_mbps} mbps",
+            "down": f"{settings.down_mbps} mbps",
         }
 
+    # Merged last, and only over keys the panel does not own — the settings
+    # module refuses the reserved ones before they are ever stored, so by the
+    # time anything reaches here there is nothing left to guard against.
+    for key, value in (settings.extra or {}).items():
+        if key not in hysteria_settings.RESERVED_KEYS:
+            config[key] = value
+
     return config
+
+
+def preview(settings=None) -> str:
+    """The rendered file as text, for the panel to show.
+
+    The stats secret is the one thing held back: it is this process's key to
+    its own daemon, it is regenerated on every start, and an admin reading the
+    screen has no use for it.
+    """
+    config = render(settings)
+    config = {
+        **config,
+        "trafficStats": {**config["trafficStats"], "secret": "<generated on each start>"},
+    }
+    return yaml.safe_dump(config, sort_keys=False, default_flow_style=False)
 
 
 def write(path: Optional[str] = None) -> str:

@@ -7,25 +7,38 @@ here is about one process on this machine.
 from app import logger
 from app.hysteria import config  # noqa: F401
 from app.hysteria.config import HysteriaConfigError  # noqa: F401
+from app.hysteria import settings  # noqa: F401
 from app.hysteria.core import HysteriaCore
-from config import (HYSTERIA_DOMAIN, HYSTERIA_ENABLED,
-                    HYSTERIA_EXECUTABLE_PATH, HYSTERIA_PORT)
+from config import HYSTERIA_EXECUTABLE_PATH
 
 core = HysteriaCore(HYSTERIA_EXECUTABLE_PATH)
 
 
 def is_enabled() -> bool:
-    return bool(HYSTERIA_ENABLED)
+    return settings.current().enabled
 
 
 def ensure_running() -> None:
-    """Start the daemon if it should be running and is not.
+    """Bring the daemon into line with the settings. Called on a timer.
 
-    Called on a timer. A failure is logged and left at that: the usual cause is
-    a certificate that has not been issued yet, and repeating the traceback
-    every few seconds would bury the log without telling anyone more.
+    Both directions, because the setting is now something an admin can change
+    while the panel is up: a daemon that has been turned off is stopped here,
+    not only at shutdown. Without that, turning hysteria off in the panel would
+    leave the port open and users connected until the next restart.
+
+    A failure to start is logged and left at that. The usual cause is a
+    certificate that has not been issued yet, and repeating the traceback every
+    few seconds would bury the log without telling anyone more.
     """
-    if not is_enabled() or core.started or core.restarting:
+    if core.restarting:
+        return
+
+    if not is_enabled():
+        if core.started:
+            core.stop()
+        return
+
+    if core.started:
         return
 
     try:
@@ -51,13 +64,15 @@ def inbound():
     if not is_enabled():
         return None
 
+    live = settings.current()
+
     return {
         "tag": TAG,
         "protocol": "hysteria2",
-        "port": HYSTERIA_PORT,
+        "port": live.port,
         "network": "hysteria2",
         "tls": "tls",
-        "sni": [HYSTERIA_DOMAIN] if HYSTERIA_DOMAIN else [],
+        "sni": [live.domain] if live.domain else [],
         "host": [],
         "path": "",
         "header_type": "",

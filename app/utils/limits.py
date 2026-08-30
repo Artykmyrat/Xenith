@@ -264,20 +264,69 @@ def _merge_daemon_json() -> str:
     return json.dumps(merged, indent=2) + "\n"
 
 
+def host_files() -> Dict[str, str]:
+    """The three files this feature owns, keyed by their entry in RESTART_NOTES.
+
+    Resolved on each call rather than at import: the paths are configuration,
+    and the tests move them somewhere harmless.
+    """
+    return {
+        "limits": ULIMIT_LIMITS_CONF_PATH,
+        "systemd": ULIMIT_SYSTEMD_CONF_PATH,
+        "docker": ULIMIT_DOCKER_DAEMON_PATH,
+    }
+
+
+def _why_unwritable(path: str) -> Optional[str]:
+    """Why one host file cannot be written, or None when it can.
+
+    A missing directory is not a refusal. Two of these three are systemd-style
+    drop-in directories that a host has no reason to carry until something puts
+    a file in one, so what matters is whether the nearest directory that does
+    exist lets the panel create the rest.
+    """
+    directory = os.path.dirname(path)
+
+    existing = directory
+    while not os.path.isdir(existing):
+        parent = os.path.dirname(existing)
+        if parent == existing:
+            return f"{directory} does not exist, and neither does anything above it."
+        existing = parent
+
+    if not os.access(existing, os.W_OK):
+        if existing == directory:
+            return f"{directory} is not writable by the panel."
+        # Name both: the directory that was wanted, and the one that stood in
+        # the way. "/ is not writable" on its own tells nobody which setting to
+        # look at.
+        return (
+            f"{directory} does not exist, and {existing} is not writable by the panel, "
+            "so it could not be created."
+        )
+
+    return None
+
+
 def writable() -> Optional[str]:
-    """Why the host files cannot be written, or None when they can."""
+    """Why the host files cannot be written, or None when at least one can.
+
+    Deliberately not all-or-nothing. A host without Docker has no /etc/docker,
+    and a host whose /etc is read-only still has a process whose own limits can
+    be raised; in both cases refusing the whole operation would hide the part
+    that would have worked. What each individual file did is reported by
+    apply_host_limits instead.
+    """
     if not is_enabled():
         return (
             "Writing the host's limit files is disabled. Set ULIMIT_ENABLED=true, and make "
             "sure the panel can write /etc on the host."
         )
 
-    for path in (ULIMIT_LIMITS_CONF_PATH, ULIMIT_SYSTEMD_CONF_PATH, ULIMIT_DOCKER_DAEMON_PATH):
-        directory = os.path.dirname(path)
-        if not os.path.isdir(directory):
-            return f"{directory} does not exist on this host."
-        if not os.access(directory, os.W_OK):
-            return f"{directory} is not writable by the panel."
+    paths = host_files().values()
+    problems = [reason for reason in map(_why_unwritable, paths) if reason]
+    if len(problems) == len(paths):
+        return problems[0]
 
     return None
 
@@ -293,7 +342,13 @@ RESTART_NOTES = {
 def apply_host_limits() -> RaiseReport:
     """Write every host limit file, and report what still has to restart.
 
-    Nothing is restarted here on purpose. Reloading the Docker daemon from a
+    Each file is written on its own and a failure only costs that one: a host
+    with no /etc/docker still gets its systemd default, and a read-only /etc
+    still gets this process's own limit raised. What did not work comes back in
+    `problems` rather than as an exception, because a partial result is the
+    normal outcome here rather than an error.
+
+    Nothing is restarted on purpose. Reloading the Docker daemon from a
     container the daemon is running would take the panel down mid-request, so
     that last step stays a decision someone makes at a shell.
     """
@@ -303,16 +358,30 @@ def apply_host_limits() -> RaiseReport:
 
     report = raise_own_limits()
 
-    for name, path, content in (
-        ("limits", ULIMIT_LIMITS_CONF_PATH, limits_conf()),
-        ("systemd", ULIMIT_SYSTEMD_CONF_PATH, systemd_conf()),
-        ("docker", ULIMIT_DOCKER_DAEMON_PATH, _merge_daemon_json()),
-    ):
+    # The content is built lazily: reading a malformed daemon.json raises, and
+    # that must cost only the Docker file rather than the two before it.
+    builders = {"limits": limits_conf, "systemd": systemd_conf, "docker": _merge_daemon_json}
+
+    for name, path in host_files().items():
+        build = builders[name]
+        problem = _why_unwritable(path)
+        if problem:
+            report.problems.append(problem)
+            continue
+
+        directory = os.path.dirname(path)
         try:
-            atomic_write(path, content)
-        except FileWriteError as err:
+            os.makedirs(directory, exist_ok=True)
+        except OSError as err:
+            report.problems.append(f"Could not create {directory}: {err}")
+            continue
+
+        try:
+            atomic_write(path, build())
+        except (FileWriteError, LimitsError) as err:
             report.problems.append(str(err))
             continue
+
         report.written[path] = RESTART_NOTES[name]
 
     return report
