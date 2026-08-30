@@ -83,7 +83,15 @@ export const useTopUsers = (limit = 5) =>
     fetch("/users", { query: { limit, sort: "-used_traffic" } }),
   );
 
-export const useAdmin = () => useQuery<AdminProfile>("xenith-admin", () => fetch("/admin"));
+export const ADMIN_QUERY_KEY = "xenith-admin";
+
+/** Who the session belongs to. The router primes this on the way in. */
+export const fetchAdmin = () => fetch("/admin") as Promise<AdminProfile>;
+
+export const useAdmin = () => useQuery<AdminProfile>(ADMIN_QUERY_KEY, fetchAdmin);
+
+/** Drops the session cookie server-side. Signing out is the only caller. */
+export const logout = () => fetch("/admin/logout", { method: "POST" });
 
 export type Certificate = {
   name: string;

@@ -2,6 +2,7 @@ import { useToast } from "@chakra-ui/react";
 import { FC, useState } from "react";
 import { Trans, useTranslation } from "react-i18next";
 import { useDashboard } from "contexts/DashboardContext";
+import { apiErrorMessage } from "service/error";
 import { ConfirmDialog } from "xenith/ConfirmDialog";
 
 export const DeleteUserModal: FC = () => {
@@ -24,8 +25,19 @@ export const DeleteUserModal: FC = () => {
           position: "top",
           duration: 3000,
         });
+        onClose();
       })
-      .then(onClose)
+      .catch((error) => {
+        // The dialog stays open on a refusal, so the deletion can be retried
+        // rather than looking as though it went through.
+        toast({
+          title: apiErrorMessage(error) || t("deleteUser.deleteError"),
+          status: "error",
+          isClosable: true,
+          position: "top",
+          duration: 5000,
+        });
+      })
       .finally(() => setLoading(false));
   };
 

@@ -429,7 +429,7 @@ export const Core: FC = () => {
   const { t } = useTranslation();
   const toast = useToast();
   const queryClient = useQueryClient();
-  const { fetchCoreSettings, updateConfig, restartCore, config, version, started, isLoading, isPostLoading } =
+  const { fetchCoreSettings, updateConfig, restartCore, config, version, started, isLoading, isPostLoading, error } =
     useCoreSettings();
   const { logs } = useCoreLogs(LOG_LINES);
 
@@ -590,6 +590,8 @@ export const Core: FC = () => {
             ))}
           </div>
         </div>
+
+        {error !== null && <NoticeBox>{error || t("core.generalErrorMessage")}</NoticeBox>}
 
         <div
           style={{

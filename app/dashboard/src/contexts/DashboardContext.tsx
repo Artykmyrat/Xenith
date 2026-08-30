@@ -1,6 +1,7 @@
-import { router } from "@/pages/Router";
 import debounce from "lodash.debounce";
+import { apiErrorMessage } from "service/error";
 import { fetch } from "service/http";
+import { navigateTo } from "service/navigation";
 import { User, UserCreate, UserDevices } from "types/User";
 import { queryClient } from "utils/react-query";
 import { getUsersPerPageLimitSize } from "utils/userPreferenceStorage";
@@ -43,6 +44,12 @@ type DashboardStateType = {
   };
   inbounds: Inbounds;
   loading: boolean;
+  /**
+   * null while the list is fine. A string when the last fetch failed: what the
+   * server said, or an empty string when it said nothing worth printing, which
+   * the screen turns into its own wording.
+   */
+  usersError: string | null;
   filters: FilterType;
   subscribeUrl: string | null;
   QRcodeLinks: string[] | null;
@@ -76,31 +83,55 @@ type DashboardStateType = {
   resetUserDevices: (user: User) => Promise<UserDevices>;
 };
 
-const fetchUsers = (query: FilterType): Promise<User[]> => {
-  for (const key in query) {
-    if (!query[key as keyof FilterType]) delete query[key as keyof FilterType];
+/** The filters worth sending, copied out rather than pruned in place. */
+const usersQuery = (filters: FilterType): Record<string, string | number> => {
+  const query: Record<string, string | number> = {};
+  for (const [key, value] of Object.entries(filters)) {
+    if (value !== undefined && value !== null && value !== "") query[key] = value as string | number;
   }
-  useDashboard.setState({ loading: true });
-  return fetch("/users", { query })
+  return query;
+};
+
+/**
+ * The request in flight, so a later one can drop it. Filters change faster
+ * than the server answers, and without this an early answer that arrives late
+ * lands on top of the list the reader is actually looking at.
+ */
+let usersRequest: { id: number; controller: AbortController } | null = null;
+
+const fetchUsers = (filters: FilterType): Promise<void> => {
+  usersRequest?.controller.abort();
+  const request = { id: (usersRequest?.id ?? 0) + 1, controller: new AbortController() };
+  usersRequest = request;
+
+  useDashboard.setState({ loading: true, usersError: null });
+  return fetch("/users", { query: usersQuery(filters), signal: request.controller.signal })
     .then((users) => {
-      useDashboard.setState({ users });
-      return users;
+      if (usersRequest !== request) return;
+      useDashboard.setState({ users, loading: false, usersError: null });
     })
-    .finally(() => {
-      useDashboard.setState({ loading: false });
+    .catch((error) => {
+      // A request dropped in favour of a newer one is not a failure, and the
+      // newer one owns the loading flag from here on.
+      if (usersRequest !== request) return;
+      useDashboard.setState({ loading: false, usersError: apiErrorMessage(error) ?? "" });
     });
 };
 
-export const fetchInbounds = () => {
+/**
+ * The inbounds the user dialog offers. Best effort: the list is a convenience
+ * next to the user list, so a refusal leaves what was there and is not allowed
+ * to reject into nothing. It does not own `loading` — that belongs to the user
+ * list, and clearing it here used to end the list's loading state early.
+ */
+export const fetchInbounds = (): Promise<void> => {
   return fetch("/inbounds")
     .then((inbounds: Inbounds) => {
       useDashboard.setState({
         inbounds: new Map(Object.entries(inbounds)) as Inbounds,
       });
     })
-    .finally(() => {
-      useDashboard.setState({ loading: false });
-    });
+    .catch(() => undefined);
 };
 
 const serializeFilters = (f: Partial<FilterType>) => {
@@ -120,7 +151,7 @@ const serializeFilters = (f: Partial<FilterType>) => {
   );
 
   // The user list lives at /users now, so filters serialise onto that route.
-  router.navigate(`/users?${new URLSearchParams(parsedFilters).toString()}`, { replace: false });
+  navigateTo(`/users?${new URLSearchParams(parsedFilters).toString()}`, { replace: false });
 };
 
 export const useDashboard = create(
@@ -136,6 +167,7 @@ export const useDashboard = create(
       total: 0,
     },
     loading: true,
+    usersError: null,
     isResetingAllUsage: false,
     isEditingHosts: false,
     isEditingNodes: false,
@@ -144,13 +176,12 @@ export const useDashboard = create(
     revokeSubscriptionUser: null,
     devicesUser: null,
     filters: {
-      username: "",
       limit: getUsersPerPageLimitSize(),
       sort: "-created_at",
     },
     inbounds: new Map(),
     refetchUsers: () => {
-      // cancel prev request first
+      // Whatever was still in flight is dropped inside; only this answer counts.
       fetchUsers(get().filters);
     },
     resetAllUsage: () => {
@@ -203,10 +234,8 @@ export const useDashboard = create(
       });
     },
     fetchUserUsage: (body: User, query: FilterUsageType) => {
-      for (const key in query) {
-        if (!query[key as keyof FilterUsageType]) delete query[key as keyof FilterUsageType];
-      }
-      return fetch(`/user/${body.username}/usage`, { method: "GET", query });
+      const active = Object.fromEntries(Object.entries(query).filter(([, value]) => !!value));
+      return fetch(`/user/${body.username}/usage`, { method: "GET", query: active });
     },
     onEditingHosts: (isEditingHosts: boolean) => {
       set({ isEditingHosts });

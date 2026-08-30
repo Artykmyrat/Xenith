@@ -35,6 +35,7 @@ import { ChartPieIcon, PencilIcon, UserPlusIcon } from "@heroicons/react/24/outl
 import { zodResolver } from "@hookform/resolvers/zod";
 import { resetStrategy } from "constants/UserSettings";
 import { FilterUsageType, useDashboard } from "contexts/DashboardContext";
+import { apiErrorMessage, apiErrorStatus } from "service/error";
 import dayjs from "dayjs";
 import { FC, useEffect, useState } from "react";
 import ReactApexChart from "react-apexcharts";
@@ -251,15 +252,19 @@ export const UserDialog: FC<UserDialogProps> = () => {
   const [usage, setUsage] = useState(createUsageConfig(colorMode, usageTitle));
   const [usageFilter, setUsageFilter] = useState("1m");
   const fetchUsageWithFilter = (query: FilterUsageType) => {
-    fetchUserUsage(editingUser!, query).then((data: any) => {
-      const labels = [];
-      const series = [];
-      for (const key in data.usages) {
-        series.push(data.usages[key].used_traffic);
-        labels.push(data.usages[key].node_name);
-      }
-      setUsage(createUsageConfig(colorMode, usageTitle, series, labels));
-    });
+    fetchUserUsage(editingUser!, query)
+      .then((data: any) => {
+        const labels = [];
+        const series = [];
+        for (const key in data.usages) {
+          series.push(data.usages[key].used_traffic);
+          labels.push(data.usages[key].node_name);
+        }
+        setUsage(createUsageConfig(colorMode, usageTitle, series, labels));
+      })
+      // The chart sits beside the form rather than in front of it, so a refusal
+      // empties it and leaves the dialog usable instead of raising an alarm.
+      .catch(() => setUsage(createUsageConfig(colorMode, usageTitle)));
   };
 
   useEffect(() => {
@@ -304,16 +309,21 @@ export const UserDialog: FC<UserDialogProps> = () => {
         onClose();
       })
       .catch((err) => {
-        if (err?.response?.status === 409 || err?.response?.status === 400) setError(err?.response?._data?.detail);
-        if (err?.response?.status === 422) {
-          Object.keys(err.response._data.detail).forEach((key) => {
-            setError(err?.response._data.detail[key] as string);
+        const detail = err?.response?._data?.detail;
+        if (apiErrorStatus(err) === 422 && detail && typeof detail === "object") {
+          Object.keys(detail).forEach((key) => {
+            setError(detail[key] as string);
             form.setError(key as "proxies" | "username" | "data_limit" | "expire", {
               type: "custom",
-              message: err.response._data.detail[key],
+              message: detail[key],
             });
           });
+          return;
         }
+        // Everything else — a conflict, a bad request, a server that fell over
+        // — is reported too. Only 409/400 used to be, so any other failure left
+        // the dialog looking as though nothing had happened.
+        setError(apiErrorMessage(err) || t("xenith.requestFailed"));
       })
       .finally(() => {
         setLoading(false);

@@ -1,8 +1,9 @@
 import dayjs from "dayjs";
 import debounce from "lodash.debounce";
 import { Link as LinkIcon, QrCode, RotateCcw, Smartphone, SquarePen, Trash2 } from "lucide-react";
-import { ChangeEvent, FC, useEffect, useMemo, useState } from "react";
+import { ChangeEvent, FC, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useLocation, useNavigationType } from "react-router-dom";
 import { DeleteUserModal } from "components/DeleteUserModal";
 import { HostsDialog } from "components/HostsDialog";
 import { NodesDialog } from "components/NodesModal";
@@ -14,11 +15,10 @@ import { UserDevicesModal } from "components/UserDevicesModal";
 import { RevokeSubscriptionModal } from "components/RevokeSubscriptionModal";
 import { UserDialog } from "components/UserDialog";
 import { fetchInbounds, FilterType, useDashboard } from "contexts/DashboardContext";
-import { router } from "pages/Router";
 import { User } from "types/User";
 import { Blueprint } from "xenith/Blueprint";
 import { formatBytes, formatPercent, groupDigits } from "xenith/format";
-import { PanelEmpty } from "xenith/panels";
+import { NoticeBox, PanelEmpty } from "xenith/panels";
 
 const STATUSES: (FilterType["status"] | undefined)[] = [
   undefined,
@@ -87,38 +87,50 @@ const useExpiryText = () => {
 
 export const Users: FC = () => {
   const { t } = useTranslation();
-  const { users, loading, filters, onFilterChange, onCreateUser, onEditingUser, onDeletingUser, setQRCode, setSubLink } =
-    useDashboard();
+  const {
+    users,
+    loading,
+    usersError,
+    filters,
+    onFilterChange,
+    onCreateUser,
+    onEditingUser,
+    onDeletingUser,
+    setQRCode,
+    setSubLink,
+  } = useDashboard();
   const [search, setSearch] = useState(filters.search || "");
   const expiryText = useExpiryText();
+  const location = useLocation();
+  const navigationType = useNavigationType();
+  const synced = useRef(false);
 
   useEffect(() => {
-    useDashboard.getState().refetchUsers();
     fetchInbounds();
   }, []);
 
+  /**
+   * The URL carries the filters: on the way in, and again whenever the reader
+   * walks back through their history. Every other change starts in the store
+   * and is written out to the URL from there, so only a POP is read back —
+   * reading a push back would fetch the same list twice.
+   */
   useEffect(() => {
-    const initFilters = debounce((params: URLSearchParams) => {
-      useDashboard.getState().onFilterChange(
-        {
-          search: params.get("search") || undefined,
-          status: (params.get("status") as FilterType["status"]) || undefined,
-          sort: params.get("sort") || "-created_at",
-          offset: params.get("offset") ? Number(params.get("offset")) : undefined,
-        },
-        false,
-      );
-    }, 50);
+    if (synced.current && navigationType !== "POP") return;
+    synced.current = true;
 
-    initFilters(new URLSearchParams(router.state.location.search));
-    return router.subscribe(
-      debounce((state) => {
-        if (state.historyAction === "POP") {
-          initFilters(new URLSearchParams(state.location.search));
-        }
-      }, 50),
+    const params = new URLSearchParams(location.search);
+    setSearch(params.get("search") || "");
+    useDashboard.getState().onFilterChange(
+      {
+        search: params.get("search") || undefined,
+        status: (params.get("status") as FilterType["status"]) || undefined,
+        sort: params.get("sort") || "-created_at",
+        offset: params.get("offset") ? Number(params.get("offset")) : undefined,
+      },
+      false,
     );
-  }, []);
+  }, [location.search, navigationType]);
 
   const onSearch = useMemo(
     () => debounce((value: string) => onFilterChange({ search: value || undefined, offset: 0 }), 300),
@@ -170,9 +182,9 @@ export const Users: FC = () => {
       </Blueprint>
 
       <Blueprint style={{ padding: "18px 20px 20px", display: "flex", flexDirection: "column", gap: 14 }}>
-        {users.users.length === 0 ? (
-          <PanelEmpty loading={loading}>{t("xenith.users.empty")}</PanelEmpty>
-        ) : (
+        {usersError !== null && <NoticeBox>{usersError || t("xenith.users.loadFailed")}</NoticeBox>}
+
+        {users.users.length > 0 ? (
           <div className="xn-scroll-x">
             <table className="xn-table" style={{ fontSize: 13 }}>
               <thead>
@@ -275,6 +287,8 @@ export const Users: FC = () => {
               </tbody>
             </table>
           </div>
+        ) : (
+          usersError === null && <PanelEmpty loading={loading}>{t("xenith.users.empty")}</PanelEmpty>
         )}
 
         <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>

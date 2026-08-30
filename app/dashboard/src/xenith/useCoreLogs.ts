@@ -1,5 +1,5 @@
 import { joinPaths } from "@remix-run/router";
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { useWebSocket } from "react-use-websocket/dist/lib/use-websocket";
 
 export type CoreLogLine = { id: number; time: string; level: string; text: string };
@@ -32,7 +32,10 @@ const websocketUrl = (path: string) => {
 /** Streams the core log, keeping only the last `limit` lines. */
 export const useCoreLogs = (limit: number) => {
   const [logs, setLogs] = useState<CoreLogLine[]>([]);
-  const [counter, setCounter] = useState(0);
+  // Row keys only have to be unique and rising, and they are handed out while
+  // the message is being read rather than from inside the state updater, which
+  // has to stay a pure function of what it is given.
+  const nextId = useRef(0);
 
   const onMessage = useCallback(
     (event: WebSocketEventMap["message"]) => {
@@ -42,23 +45,22 @@ export const useCoreLogs = (limit: number) => {
         .filter(Boolean);
       if (lines.length === 0) return;
 
-      setCounter((start) => {
-        setLogs((current) => {
-          const parsed = lines.map((line, index) => {
-            const match = LOG_RE.exec(line);
-            return {
-              id: start + index,
-              // The access log stamps microseconds, which are six digits of
-              // noise in a column this narrow; seconds is what the tail is read for.
-              time: (match?.[2] || "").split(".")[0],
-              level: (match?.[3] || "INFO").toUpperCase(),
-              text: match?.[4] || line,
-            };
-          });
-          return [...current, ...parsed].slice(-limit);
-        });
-        return start + lines.length;
+      const start = nextId.current;
+      nextId.current = start + lines.length;
+
+      const parsed = lines.map((line, index) => {
+        const match = LOG_RE.exec(line);
+        return {
+          id: start + index,
+          // The access log stamps microseconds, which are six digits of
+          // noise in a column this narrow; seconds is what the tail is read for.
+          time: (match?.[2] || "").split(".")[0],
+          level: (match?.[3] || "INFO").toUpperCase(),
+          text: match?.[4] || line,
+        };
       });
+
+      setLogs((current) => [...current, ...parsed].slice(-limit));
     },
     [limit],
   );

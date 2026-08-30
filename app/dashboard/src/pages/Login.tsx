@@ -43,10 +43,11 @@ export const Login: FC = () => {
   } = useForm({ resolver: zodResolver(schema) });
 
   useEffect(() => {
-    // Landing here means the session is over, so drop the cookie server-side
-    // as well. Failures are ignored: the cookie may already be gone.
+    // Only local leftovers are cleared here. Ending the session is an act of
+    // its own — the sign-out button does it — because this screen is also what
+    // an expired session lands on, and a failure that merely looked like one
+    // must not be the thing that signs anybody out.
     clearLegacyToken();
-    fetch("/admin/logout", { method: "post" }).catch(() => undefined);
     if (location.pathname !== "/login") {
       navigate("/login", { replace: true });
     }

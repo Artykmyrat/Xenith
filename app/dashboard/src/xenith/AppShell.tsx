@@ -18,7 +18,8 @@ import { useTranslation } from "react-i18next";
 import { useQueryClient } from "react-query";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useDashboard } from "contexts/DashboardContext";
-import { restartCore, useAdmin, useCoreStats, useNodes, useSystemStats } from "./api";
+import { clearLegacyToken } from "utils/authStorage";
+import { logout, restartCore, useAdmin, useCoreStats, useNodes, useSystemStats } from "./api";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { groupDigits } from "./format";
 import { LogoLockup } from "./Logo";
@@ -99,8 +100,22 @@ export const AppShell: FC = () => {
 
   const onSearch = (event: FormEvent) => {
     event.preventDefault();
-    useDashboard.getState().onFilterChange({ search, offset: 0 });
-    navigate("/users");
+    // The filter change writes itself onto /users, so navigating again here
+    // would only strip the query string back off the URL.
+    useDashboard.getState().onFilterChange({ search: search || undefined, offset: 0 });
+  };
+
+  // Signing out is the one thing that ends the session, and it ends it on the
+  // server too. A refusal is not worth staying signed in over: the cookie may
+  // already be gone, and the screen has to be left either way.
+  const onLogout = () => {
+    logout()
+      .catch(() => undefined)
+      .finally(() => {
+        clearLegacyToken();
+        queryClient.clear();
+        navigate("/login", { replace: true });
+      });
   };
 
   const onRefresh = () => {
@@ -223,9 +238,14 @@ export const AppShell: FC = () => {
                 {admin?.is_sudo ? t("xenith.roleSudo") : t("xenith.roleAdmin")}
               </span>
             </div>
-            <NavLink to="/login" className="xn-link" style={{ fontSize: 11, marginLeft: 4 }}>
+            <button
+              type="button"
+              onClick={onLogout}
+              className="xn-link"
+              style={{ background: "none", border: 0, padding: 0, cursor: "pointer", font: "inherit", fontSize: 11, marginLeft: 4 }}
+            >
               {t("header.logout")}
-            </NavLink>
+            </button>
           </div>
         </header>
 
