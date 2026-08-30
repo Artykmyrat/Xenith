@@ -17,6 +17,7 @@ const LOG_LINES = 200;
 /** REALITY has no WebSocket to borrow a handshake from, so that pair is blocked. */
 const TEMPLATES: { transport: InboundTransport; label: string }[] = [
   { transport: "tcp", label: "VLESS TCP" },
+  { transport: "xhttp", label: "VLESS XHTTP" },
   { transport: "grpc", label: "VLESS gRPC" },
   { transport: "ws", label: "VLESS WS" },
 ];

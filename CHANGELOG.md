@@ -15,11 +15,11 @@ own history starts at 0.9.0; for anything older, see the upstream changelog.
 - **Core** is a screen of its own under *Configuration*, replacing the drawer
   the core configuration used to open in. It carries the editor, the version
   and state of the core, restart, and a tail of the core log.
-- Inbound templates on that screen: VLESS over tcp, grpc or ws, with one choice
-  of TLS or REALITY for all three. A template arrives with a tag and a port the
-  configuration is not using; REALITY brings its own key pair and short ID, TLS
-  points at a certificate certbot already holds. REALITY over WebSocket is
-  refused, since xray does not carry it.
+- Inbound templates on that screen: VLESS over tcp, xhttp, grpc or ws, with one
+  choice of TLS or REALITY for all of them. A template arrives with a tag and a
+  port the configuration is not using; REALITY brings its own key pair and
+  short ID, TLS points at a certificate certbot already holds. REALITY over
+  WebSocket is refused, since xray does not carry it.
 
 ### Fixed
 

@@ -17,7 +17,7 @@ class InboundTemplateRequest(BaseModel):
     has been saved yet when the second is asked for.
     """
 
-    transport: Literal["tcp", "grpc", "ws"]
+    transport: Literal["tcp", "grpc", "ws", "xhttp"]
     security: Literal["tls", "reality"]
     taken_tags: List[str] = Field(default_factory=list, max_length=500)
     taken_ports: List[int] = Field(default_factory=list, max_length=500)

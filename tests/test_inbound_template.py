@@ -70,7 +70,7 @@ class TestKeyPair:
 
 
 class TestChoices:
-    @pytest.mark.parametrize("transport", ["tcp", "grpc"])
+    @pytest.mark.parametrize("transport", ["tcp", "grpc", "xhttp"])
     def test_reality_is_built_for_the_transports_that_support_it(self, transport):
         inbound = inbound_template.build(transport, "reality")
 
@@ -108,6 +108,16 @@ class TestRealityTemplate:
 
         assert settings["pbk"] == get_x25519_public_key(private_key)
 
+    def test_the_xhttp_path_and_mode_reach_the_panel(self):
+        inbound = inbound_template.build("xhttp", "reality")
+
+        settings = parse(inbound).inbounds_by_tag[inbound["tag"]]
+
+        assert settings["network"] == "xhttp"
+        assert settings["path"] == inbound["streamSettings"]["xhttpSettings"]["path"]
+        # "auto" leaves the choice of packet-up, stream-up or stream-one to the client.
+        assert settings["mode"] == "auto"
+
     def test_the_grpc_service_name_reaches_the_panel(self):
         inbound = inbound_template.build("grpc", "reality")
 
@@ -135,6 +145,15 @@ class TestTlsTemplate:
                 "keyFile": certificates.private_key_path,
             }
         ]
+
+    @pytest.mark.parametrize("transport", ["tcp", "grpc", "ws", "xhttp"])
+    def test_every_transport_is_offered_with_tls(self, certificates, transport):
+        inbound = inbound_template.build(transport, "tls")
+
+        settings = parse(inbound).inbounds_by_tag[inbound["tag"]]
+
+        assert settings["tls"] == "tls"
+        assert settings["network"] == transport
 
     def test_it_parses_as_the_panel_reads_it(self, certificates):
         inbound = inbound_template.build("ws", "tls")

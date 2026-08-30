@@ -292,7 +292,7 @@ export const uploadNginxFile = (file: File, path?: string) => {
 
 export const restartCore = () => fetch("/core/restart", { method: "POST" });
 
-export type InboundTransport = "tcp" | "grpc" | "ws";
+export type InboundTransport = "tcp" | "grpc" | "ws" | "xhttp";
 export type InboundSecurity = "tls" | "reality";
 
 /**

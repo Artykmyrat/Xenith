@@ -6,9 +6,9 @@ a REALITY inbound gets a freshly generated key pair and a short ID, a TLS one
 points at a certificate certbot already holds, and both get a tag and a port
 the configuration is not already using.
 
-Only the three transports the buttons offer are built here. REALITY is not
-among xray's options for WebSocket — it needs the raw stream that tcp and grpc
-give it — so that one combination is refused rather than quietly downgraded.
+Only the transports the buttons offer are built here. REALITY is not among
+xray's options for WebSocket — it needs the raw stream that the others give it
+— so that one combination is refused rather than quietly downgraded.
 """
 
 import secrets
@@ -18,7 +18,7 @@ from app.utils import certbot
 from app.utils.crypto import generate_x25519_keypair
 from config import UVICORN_PORT
 
-TRANSPORTS = ("tcp", "grpc", "ws")
+TRANSPORTS = ("tcp", "grpc", "ws", "xhttp")
 SECURITIES = ("tls", "reality")
 
 # Where REALITY sends traffic that is not one of ours. A well-known host that
@@ -102,6 +102,15 @@ def _stream(transport: str, security: str) -> Dict:
             "grpcSettings": {"serviceName": secrets.token_hex(4), "multiMode": False},
         }
 
+    if transport == "xhttp":
+        return {
+            "network": "xhttp",
+            "security": security,
+            # "auto" on the server side means it takes whichever of the three
+            # modes the client picked, rather than dictating one.
+            "xhttpSettings": {"path": f"/{secrets.token_hex(4)}", "mode": "auto"},
+        }
+
     return {
         "network": "ws",
         "security": security,
@@ -147,8 +156,8 @@ def build(
         raise TemplateError(f"{security!r} is not a security this offers.")
     if security == "reality" and transport == "ws":
         raise TemplateError(
-            "REALITY does not work over WebSocket. Use tcp or grpc for REALITY, "
-            "or TLS for WebSocket."
+            "REALITY does not work over WebSocket. Use tcp, grpc or xhttp for "
+            "REALITY, or TLS for WebSocket."
         )
 
     stream = _stream(transport, security)
