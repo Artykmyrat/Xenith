@@ -41,6 +41,7 @@ from app.db.base import Base  # noqa: E402
 from app.models.admin import AdminCreate, pwd_context  # noqa: E402
 from app.models.user import UserCreate  # noqa: E402
 from app.utils import jwt as jwt_utils  # noqa: E402
+from app.utils import backup as backup_utils  # noqa: E402
 from app.utils import nginx  # noqa: E402
 from app.utils import sysctl  # noqa: E402
 from app.utils.sysctl_catalog import TUNABLES  # noqa: E402
@@ -312,6 +313,65 @@ def nginx_host(tmp_path, monkeypatch):
     monkeypatch.setattr(nginx, "NGINX_WEBROOT", str(tree["webroot"]))
     monkeypatch.setattr(nginx, "NGINX_LOG_DIR", str(tree["logs"]))
     return tree
+
+
+@pytest.fixture
+def backup_host(tmp_path, monkeypatch):
+    """A stand-in install for the backup screen to archive and restore.
+
+    A database with one row in it, an environment file, an xray configuration
+    and a data directory — the four things a backup is made of, all under the
+    test's own tmp_path so a restore has somewhere real to write.
+    """
+    import sqlite3
+
+    data = tmp_path / "data"
+    (data / "certs").mkdir(parents=True)
+    (data / "certs" / "panel.pem").write_text("certificate")
+
+    database = data / "db.sqlite3"
+    connection = sqlite3.connect(database)
+    connection.execute("CREATE TABLE users (id INTEGER, name TEXT)")
+    connection.execute("INSERT INTO users VALUES (1, 'original')")
+    connection.commit()
+    connection.close()
+
+    env = tmp_path / ".env"
+    env.write_text("SUDO_USERNAME=admin\n")
+    xray_json = tmp_path / "xray_config.json"
+    xray_json.write_text('{"inbounds": []}')
+
+    tree = {
+        "root": tmp_path,
+        "data": data,
+        "database": database,
+        "env": env,
+        "xray_config": xray_json,
+        "backups": tmp_path / "backups",
+    }
+
+    monkeypatch.setattr(backup_utils, "BACKUP_ENABLED", True)
+    monkeypatch.setattr(backup_utils, "BACKUP_DIR", str(tree["backups"]))
+    monkeypatch.setattr(backup_utils, "BACKUP_DATA_DIR", str(data))
+    monkeypatch.setattr(backup_utils, "BACKUP_ENV_FILE", str(env))
+    monkeypatch.setattr(backup_utils, "XRAY_JSON", str(xray_json))
+    monkeypatch.setattr(backup_utils, "SQLALCHEMY_DATABASE_URL", f"sqlite:///{database}")
+    return tree
+
+
+@pytest.fixture
+def db_value():
+    """Read the single row back out of a SQLite database file."""
+    import sqlite3
+
+    def read(path):
+        connection = sqlite3.connect(str(path))
+        try:
+            return connection.execute("SELECT name FROM users").fetchone()[0]
+        finally:
+            connection.close()
+
+    return read
 
 
 @pytest.fixture

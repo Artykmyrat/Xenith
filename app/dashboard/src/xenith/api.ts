@@ -384,3 +384,93 @@ export const flattenInbounds = (grouped?: Record<string, Inbound[]>): (Inbound &
   Object.entries(grouped || {}).flatMap(([protocol, inbounds]) =>
     (inbounds || []).map((inbound) => ({ ...inbound, protocol })),
   );
+
+export type BackupFile = {
+  name: string;
+  size: number;
+  created_at: string;
+  /** How it came about: made here, made on a schedule, taken before a restore, or uploaded. */
+  kind: "manual" | "automatic" | "pre-restore" | "imported" | string;
+  source: "xenith" | "marzban" | "unknown" | string;
+  note: string;
+};
+
+export type BackupStatus = {
+  enabled: boolean;
+  writable: boolean;
+  reason: string | null;
+  paths: Record<string, string>;
+  database: { kind: string; target: string | null; reason: string | null };
+  schedule: { interval_hours: number; keep: number };
+  total_bytes: number;
+  backups: BackupFile[];
+};
+
+/** What one archive holds, and which parts of it this install can take. */
+export type BackupContents = {
+  name: string;
+  format: string;
+  source: string;
+  kind: string;
+  size: number;
+  created_at: string;
+  manifest: Record<string, any> | null;
+  database: "sqlite" | "sql" | null;
+  database_member: string | null;
+  database_bytes: number;
+  env_member: string | null;
+  xray_member: string | null;
+  data_files: number;
+  data_bytes: number;
+  entries: string[];
+  truncated: boolean;
+  restorable: string[];
+  warnings: string[];
+};
+
+export type BackupRestoreResult = {
+  applied: string[];
+  skipped: string[];
+  safety_backup: string | null;
+  restart_required: boolean;
+  detail: string;
+};
+
+/** Backups the panel holds. Sudo only, so failures are swallowed. */
+export const useBackups = () =>
+  useQuery<BackupStatus>("xenith-backups", () => fetch("/backups"), { retry: false });
+
+export const createBackup = (body: {
+  include_database?: boolean;
+  include_env?: boolean;
+  include_xray_config?: boolean;
+  include_data?: boolean;
+  note?: string;
+}) => fetch("/backups", { method: "POST", body }) as Promise<BackupStatus>;
+
+export const inspectBackup = (name: string) =>
+  fetch(`/backups/${encodeURIComponent(name)}`) as Promise<BackupContents>;
+
+export const restoreBackup = (name: string, items: string[]) =>
+  fetch(`/backups/${encodeURIComponent(name)}/restore`, {
+    method: "POST",
+    body: { items },
+  }) as Promise<BackupRestoreResult>;
+
+export const deleteBackup = (name: string) =>
+  fetch(`/backups/${encodeURIComponent(name)}`, { method: "DELETE" }) as Promise<BackupStatus>;
+
+/** Uploads go as multipart, so the body is a FormData rather than JSON. */
+export const uploadBackup = (file: File) => {
+  const body = new FormData();
+  body.append("file", file);
+  return fetch("/backups/upload", { method: "POST", body }) as Promise<BackupContents>;
+};
+
+/**
+ * The archive itself, as a browser download. It goes through an anchor rather
+ * than fetch: the session cookie is attached to the navigation, and the file
+ * never has to be held in memory on the way past.
+ */
+export const backupDownloadURL = (name: string) =>
+  `${import.meta.env.VITE_BASE_API}backups/${encodeURIComponent(name)}/download`;

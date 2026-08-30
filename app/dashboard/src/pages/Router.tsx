@@ -1,6 +1,7 @@
 import { createHashRouter } from "react-router-dom";
 import { fetch } from "../service/http";
 import { AppShell } from "../xenith/AppShell";
+import { Backup } from "./Backup";
 import { Certificates } from "./Certificates";
 import { Core } from "./Core";
 import { Inbounds } from "./Inbounds";
@@ -36,6 +37,7 @@ export const router = createHashRouter([
       { path: "nginx", element: <Nginx /> },
       { path: "users", element: <Users /> },
       { path: "settings", element: <Settings /> },
+      { path: "backup", element: <Backup /> },
     ],
   },
   {

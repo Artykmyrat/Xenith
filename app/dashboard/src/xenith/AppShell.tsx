@@ -1,5 +1,6 @@
 import {
   Activity,
+  Archive,
   Cpu,
   Globe,
   LayoutGrid,
@@ -41,6 +42,7 @@ const PAGE_TITLES: Record<string, { kicker: string; title: string }> = {
   "/nginx": { kicker: "xenith.kicker.nginx", title: "xenith.page.nginx" },
   "/users": { kicker: "xenith.kicker.users", title: "xenith.page.users" },
   "/settings": { kicker: "xenith.kicker.settings", title: "xenith.page.settings" },
+  "/backup": { kicker: "xenith.kicker.backup", title: "xenith.page.backup" },
 };
 
 const NavGroup: FC<{ title: string; items: NavItem[]; first?: boolean }> = ({ title, items, first }) => (
@@ -92,6 +94,7 @@ export const AppShell: FC = () => {
     { to: "/core", label: t("xenith.nav.core"), icon: Cpu },
     { to: "/nginx", label: t("xenith.nav.nginx"), icon: Globe },
     { to: "/settings", label: t("xenith.nav.settings"), icon: SlidersHorizontal },
+    { to: "/backup", label: t("xenith.nav.backup"), icon: Archive },
   ];
 
   const onSearch = (event: FormEvent) => {

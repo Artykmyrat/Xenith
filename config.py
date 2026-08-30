@@ -153,6 +153,41 @@ ULIMIT_SYSTEMD_CONF_PATH = config(
 # The default every container gets from the Docker daemon.
 ULIMIT_DOCKER_DAEMON_PATH = config("ULIMIT_DOCKER_DAEMON_PATH", default="/etc/docker/daemon.json")
 
+# Backups, made and restored from the Backup screen. A backup is one gzipped
+# tar holding the database, the .env the panel was started with, the xray
+# configuration and the small files under the data directory — the same four
+# things a Marzban backup carries, which is what makes one importable here.
+# On unless the directory cannot be created, because a panel that cannot be
+# restored is the one failure with nothing behind it.
+BACKUP_ENABLED = config("BACKUP_ENABLED", default=True, cast=bool)
+# Where archives are kept. Inside the data volume, so they survive the
+# container they were made in.
+BACKUP_DIR = config("BACKUP_DIR", default="/var/lib/marzban/backups")
+# The directory whose small files ride along in a backup: certificates, the
+# hysteria configuration, custom templates. The backup directory itself and
+# any database data directory under it are always left out.
+BACKUP_DATA_DIR = config("BACKUP_DATA_DIR", default="/var/lib/marzban")
+# The environment file to archive and, when asked, to restore. On a Docker
+# install this is on the host rather than in the container, so it is only in a
+# backup when the install directory is mounted — see docs/INSTALL.md. Missing,
+# it is reported as skipped rather than failing the backup.
+BACKUP_ENV_FILE = config("BACKUP_ENV_FILE", default="/opt/xenith/.env")
+# A single file this much larger than a configuration file is data, not
+# configuration — geoip databases and core binaries live under the data
+# directory too. Skipped files are listed in the archive's manifest.
+BACKUP_MAX_FILE_BYTES = config("BACKUP_MAX_FILE_BYTES", cast=int, default=32 * 1024 * 1024)
+# Cap on an uploaded archive, and on what one restore may write out of it.
+BACKUP_MAX_UPLOAD_BYTES = config("BACKUP_MAX_UPLOAD_BYTES", cast=int, default=1024 * 1024 * 1024)
+# Automatic backups, every this many hours. 0 turns them off; only automatic
+# ones are pruned, and only down to BACKUP_KEEP of them.
+BACKUP_INTERVAL_HOURS = config("BACKUP_INTERVAL_HOURS", cast=int, default=0)
+BACKUP_KEEP = config("BACKUP_KEEP", cast=int, default=10)
+# Dumping and restoring a MySQL/MariaDB database needs its client tools; a
+# SQLite database needs nothing at all. Resolved through PATH by default.
+MYSQLDUMP_EXECUTABLE_PATH = config("MYSQLDUMP_EXECUTABLE_PATH", default="mysqldump")
+MYSQL_EXECUTABLE_PATH = config("MYSQL_EXECUTABLE_PATH", default="mysql")
+BACKUP_TIMEOUT = config("BACKUP_TIMEOUT", cast=int, default=600)
+
 # Reverse proxies whose X-Forwarded-For / X-Real-IP headers may be believed,
 # as IPs or CIDRs. Empty means the headers are ignored and the peer address is
 # used; "*" trusts every peer (only safe when the panel is unreachable directly).

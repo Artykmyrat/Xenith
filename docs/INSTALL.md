@@ -214,7 +214,8 @@ docker compose -f /opt/xenith/docker-compose.yml logs -f
 docker compose -f /opt/xenith/docker-compose.yml exec xenith xenith-cli admin list
 ```
 
-Backup — the database, the config and the certificates:
+Backup — the database, the config and the certificates. The **Backup** screen
+does this from the browser (see below); the same thing by hand is:
 
 ```bash
 tar czf xenith-backup-$(date +%F).tar.gz /var/lib/marzban /opt/xenith/.env /etc/letsencrypt
@@ -422,3 +423,60 @@ One caveat: the panel runs the nginx binary from its own image (`nginx-core`).
 If the host runs a build with extra modules, `nginx -t` in the panel can reject
 a directive the host would accept. The config is still written correctly; check
 it with `nginx -t` on the host if the panel disagrees with it.
+
+## Backups
+
+The **Backup** screen, under Configuration, makes an archive of the four things
+an install is: the database, `/opt/xenith/.env`, `xray_config.json`, and the
+small files under `/var/lib/marzban` — certificates, templates, the hysteria
+configuration. Large files there are left out, so a geoip database or a core
+binary does not turn a 2 MB backup into a 200 MB one; whatever was skipped is
+listed in the archive's manifest.
+
+Archives live in `/var/lib/marzban/backups`, which is inside the data volume
+and so survives the container. That is not the same as surviving the server:
+**download** the ones you cannot lose.
+
+On a Docker install `.env` is on the host, outside the container, so it is left
+out of a backup until you mount the install directory — the directory, not the
+file, because a restore replaces the file and that does not work through a
+single-file bind mount:
+
+```yaml
+    volumes:
+      - /opt/xenith:/opt/xenith
+```
+
+**Importing a Marzban backup** is what the screen is shaped around. A Marzban
+archive carries the same four things, so upload it — `.tar.gz`, `.zip`, a bare
+`db.sqlite3` or a `.sql` dump all work — and the panel reads it and shows what
+it found. Nothing is applied until you choose what to restore from it. The
+paths inside the archive are never used as destinations: every member is
+classified first and then written where the panel decides, so an archive from
+an unknown source cannot write outside the data directory.
+
+A restore always archives what it is about to replace first, under a
+`pre-restore-` name, so the way back from the wrong restore is another restore.
+Once it is done, **restart the panel** — it goes on running on the database it
+opened at startup until you do, and the restart is also what runs `alembic
+upgrade head` over a database that came from an older version.
+
+Two things to know before restoring an `.env`: it carries the panel's own
+secrets and ports, so restoring one from another server changes what your
+admins log in with. And a database from another install brings its own admin
+accounts with it — after restoring one, log in with the credentials from *that*
+server, not this one.
+
+MySQL and MariaDB need their client tools in the container (`mysqldump` to make
+a backup, `mysql` to restore one); SQLite needs nothing. An archive whose
+database is for the other engine is reported as such rather than half-applied.
+
+Automatic backups are off by default. In `/opt/xenith/.env`:
+
+```ini
+BACKUP_INTERVAL_HOURS = 24
+BACKUP_KEEP = 10
+```
+
+Only automatic backups are pruned, and only down to `BACKUP_KEEP` of them —
+manual, imported and pre-restore archives are kept until you delete them.

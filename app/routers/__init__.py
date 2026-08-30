@@ -1,6 +1,7 @@
 from fastapi import APIRouter
 from . import (
     admin, 
+    backup, 
     certificate, 
     core, 
     hysteria, 
@@ -18,6 +19,7 @@ api_router = APIRouter()
 
 routers = [
     admin.router,
+    backup.router,
     certificate.router,
     core.router,
     hysteria.router,

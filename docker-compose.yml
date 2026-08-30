@@ -17,6 +17,10 @@ services:
         hard: 1048576
     volumes:
       - /var/lib/marzban:/var/lib/marzban
+      # Uncomment to let the Backup screen archive and restore .env. The whole
+      # directory rather than the file: replacing the target of a single-file
+      # bind mount from inside the container does not work.
+      # - /opt/xenith:/opt/xenith
       # - /etc/nginx:/etc/nginx
       # - /var/www:/var/www
       # - /var/log/nginx:/var/log/nginx

@@ -12,6 +12,20 @@ own history starts at 0.9.0; for anything older, see the upstream changelog.
 
 ### Added
 
+- **A Backup screen**, under Configuration. It makes one archive of the four
+  things an install is — the database, `.env`, `xray_config.json` and the small
+  files under the data directory — lists what it holds, and hands them back on
+  demand. Automatic backups are off by default and turned on with
+  `BACKUP_INTERVAL_HOURS`; only those are pruned, down to `BACKUP_KEEP`.
+- **A Marzban backup can be imported from the browser.** A Marzban archive
+  carries the same things ours does, so it is uploaded, read, and applied only
+  in the parts you choose — `.tar.gz`, `.zip`, a bare `db.sqlite3` and a `.sql`
+  dump all work. Nothing is written by the path the archive gives: every member
+  is classified first and then written where the panel decides, so an archive
+  from an unknown source cannot reach outside the data directory. A restore
+  archives what it is about to replace first, under a `pre-restore-` name, so
+  the way back from the wrong restore is another restore. See *Backups* in
+  `docs/INSTALL.md`.
 - **Hysteria2**, supervised beside the xray core. It is a daemon of its own
   rather than an xray protocol, so the panel runs a second core: its TLS
   certificate comes from the ones certbot manages, and it authenticates by
