@@ -1,12 +1,13 @@
 import { useToast } from "@chakra-ui/react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { ChevronDown, ChevronUp, Copy, Info, Plus, Trash2 } from "lucide-react";
-import { FC, Fragment, useEffect, useState } from "react";
+import { FC, Fragment, useEffect, useId, useState } from "react";
 import { FormProvider, useFieldArray, useForm, useFormContext, useWatch } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import { z } from "zod";
 import { proxyALPN, proxyFingerprint, proxyHostSecurity } from "constants/Proxies";
 import { useHosts } from "contexts/HostsContext";
+import { Dialog } from "xenith/Dialog";
 import { Checkbox, Field, IconButton, Select } from "xenith/fields";
 import { useDashboard } from "../contexts/DashboardContext";
 
@@ -366,6 +367,7 @@ const InboundSection: FC<{ hostKey: string; open: boolean; onToggle: () => void 
 
 export const HostsDialog: FC = () => {
   const { isEditingHosts, onEditingHosts, refetchUsers } = useDashboard();
+  const titleId = useId();
   const { isLoading, hosts, fetchHosts, isPostLoading, setHosts } = useHosts();
   const toast = useToast();
   const { t } = useTranslation();
@@ -427,74 +429,66 @@ export const HostsDialog: FC = () => {
   const inboundTags = Object.keys(hosts || {});
 
   return (
-    <div className="xn-dialog-backdrop" onClick={onClose}>
-      <div
-        className="xn-dialog"
-        role="dialog"
-        aria-modal="true"
-        style={{ width: "min(760px, 100%)", gap: 16, overflow: "hidden" }}
-        onClick={(event) => event.stopPropagation()}
-      >
-        <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
-          <div style={{ display: "flex", flexDirection: "column", gap: 4, marginRight: "auto" }}>
-            <h3 className="xn-heading" style={{ fontSize: 22, lineHeight: 1.1 }}>
-              {t("header.hostSettings")}
-            </h3>
-            <span style={{ fontSize: 12.5, lineHeight: 1.5, color: "var(--xn-neutral-700)" }}>
-              {t("hostsDialog.title")}
-            </span>
-          </div>
-          <button className="xn-btn xn-btn-ghost" onClick={onClose} aria-label={t("close")} style={{ fontSize: 16 }}>
-            ✕
-          </button>
+    <Dialog open onClose={onClose} labelledBy={titleId} style={{ width: "min(760px, 100%)", gap: 16, overflow: "hidden" }}>
+      <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 4, marginRight: "auto" }}>
+          <h3 id={titleId} className="xn-heading" style={{ fontSize: 22, lineHeight: 1.1 }}>
+            {t("header.hostSettings")}
+          </h3>
+          <span style={{ fontSize: 12.5, lineHeight: 1.5, color: "var(--xn-neutral-700)" }}>
+            {t("hostsDialog.title")}
+          </span>
         </div>
-
-        <VariableHelp />
-
-        <FormProvider {...form}>
-          <form
-            onSubmit={form.handleSubmit(onSubmit)}
-            style={{ display: "flex", flexDirection: "column", gap: 16, minHeight: 0, flex: 1 }}
-          >
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: 10,
-                overflowY: "auto",
-                minHeight: 0,
-                flex: 1,
-                paddingRight: 4,
-              }}
-            >
-              {isLoading && (
-                <span style={{ fontSize: 12.5, color: "var(--xn-neutral-600)" }}>{t("hostsDialog.loading")}</span>
-              )}
-              {!isLoading && inboundTags.length === 0 && (
-                <span style={{ fontSize: 12.5, color: "var(--xn-neutral-600)" }}>{t("hostsDialog.noInbounds")}</span>
-              )}
-              {!isLoading &&
-                inboundTags.map((hostKey) => (
-                  <InboundSection
-                    key={hostKey}
-                    hostKey={hostKey}
-                    open={!!openSections[hostKey]}
-                    onToggle={() => setOpenSections((current) => ({ ...current, [hostKey]: !current[hostKey] }))}
-                  />
-                ))}
-            </div>
-
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
-              <button type="button" className="xn-btn xn-btn-secondary" onClick={onClose}>
-                {t("cancel")}
-              </button>
-              <button type="submit" className="xn-btn xn-btn-primary" disabled={isPostLoading}>
-                {isPostLoading ? t("xenith.working") : t("hostsDialog.apply")}
-              </button>
-            </div>
-          </form>
-        </FormProvider>
+        <button className="xn-btn xn-btn-ghost" onClick={onClose} aria-label={t("close")} style={{ fontSize: 16 }}>
+          ✕
+        </button>
       </div>
-    </div>
+
+      <VariableHelp />
+
+      <FormProvider {...form}>
+        <form
+          onSubmit={form.handleSubmit(onSubmit)}
+          style={{ display: "flex", flexDirection: "column", gap: 16, minHeight: 0, flex: 1 }}
+        >
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: 10,
+              overflowY: "auto",
+              minHeight: 0,
+              flex: 1,
+              paddingRight: 4,
+            }}
+          >
+            {isLoading && (
+              <span style={{ fontSize: 12.5, color: "var(--xn-neutral-600)" }}>{t("hostsDialog.loading")}</span>
+            )}
+            {!isLoading && inboundTags.length === 0 && (
+              <span style={{ fontSize: 12.5, color: "var(--xn-neutral-600)" }}>{t("hostsDialog.noInbounds")}</span>
+            )}
+            {!isLoading &&
+              inboundTags.map((hostKey) => (
+                <InboundSection
+                  key={hostKey}
+                  hostKey={hostKey}
+                  open={!!openSections[hostKey]}
+                  onToggle={() => setOpenSections((current) => ({ ...current, [hostKey]: !current[hostKey] }))}
+                />
+              ))}
+          </div>
+
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+            <button type="button" className="xn-btn xn-btn-secondary" onClick={onClose}>
+              {t("cancel")}
+            </button>
+            <button type="submit" className="xn-btn xn-btn-primary" disabled={isPostLoading}>
+              {isPostLoading ? t("xenith.working") : t("hostsDialog.apply")}
+            </button>
+          </div>
+        </form>
+      </FormProvider>
+    </Dialog>
   );
 };

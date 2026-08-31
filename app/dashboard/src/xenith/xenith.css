@@ -179,17 +179,21 @@ textarea.xn-input { min-height: 90px; resize: vertical; }
 .xn-table tbody tr:hover { background: color-mix(in srgb, var(--xn-text) 4%, transparent); }
 
 /* — dialogs — */
-.xn-dialog-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 1400;
-  display: grid;
-  place-items: center;
-  padding: 13.6px;
-  background: color-mix(in srgb, var(--xn-neutral-900) 50%, transparent);
+/* The shell is a bare <dialog>: the platform holds the focus inside it, closes
+   it on Escape and makes the page behind it inert. Only the backdrop belongs to
+   the element itself, so a click landing on it is a click outside the panel. */
+.xn-dialog-shell {
+  padding: 0;
+  border: 0;
+  max-width: none;
+  max-height: none;
+  background: transparent;
+  color: inherit;
+  overflow: visible;
 }
+.xn-dialog-shell::backdrop { background: rgba(23, 23, 26, 0.5); }
 .xn-dialog {
-  width: min(440px, 100%);
+  width: min(440px, calc(100vw - 32px));
   max-height: calc(100vh - 48px);
   overflow: auto;
   scrollbar-width: thin;
@@ -201,6 +205,11 @@ textarea.xn-input { min-height: 90px; resize: vertical; }
   background: var(--xn-bg);
   border: 1px solid var(--xn-divider);
 }
+/* The dialog sits in the top layer, where the shell's type does not reach it. */
+.xn-dialog { font-family: var(--xn-font-body); font-size: 14px; line-height: 1.55; color: var(--xn-text); }
+.xn-dialog :focus-visible { outline: 2px solid var(--xn-accent); outline-offset: 2px; }
+/* Nothing behind a modal scrolls with it. */
+body.xn-dialog-open { overflow: hidden; }
 
 /* — shared type helpers — */
 .xn-mono { font-family: var(--xn-font-mono); }
@@ -318,7 +327,10 @@ textarea.xn-input { min-height: 90px; resize: vertical; }
   padding: 18px 28px;
   border-bottom: 1px solid var(--xn-divider);
 }
-.xn-header-search { position: relative; display: flex; align-items: center; }
+.xn-header-search { position: relative; display: flex; align-items: center; width: 268px; }
+/* Off-canvas navigation, shown only where the sidebar cannot be. */
+.xn-nav-toggle { display: none; }
+.xn-nav-backdrop { display: none; }
 .xn-header-profile {
   display: flex;
   align-items: center;
@@ -366,7 +378,41 @@ textarea.xn-input { min-height: 90px; resize: vertical; }
 }
 @media (max-width: 900px) {
   .xn-shell { grid-template-columns: 1fr; }
-  .xn-sidebar { display: none; }
   .xn-header { flex-wrap: wrap; gap: 12px; padding: 14px 16px; }
   .xn-content { padding: 16px; }
+  .xn-header-search { width: 100%; order: 3; }
+  .xn-header-profile { padding-left: 12px; }
+
+  /* The sidebar slides in rather than disappearing. Hidden by visibility as
+     well as position, so its links leave the tab order while it is closed. */
+  .xn-nav-toggle { display: inline-flex; }
+  .xn-sidebar {
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 1300;
+    width: 268px;
+    max-width: 84vw;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    background: var(--xn-bg);
+    visibility: hidden;
+    transform: translateX(-100%);
+    transition: transform 180ms ease, visibility 180ms;
+  }
+  .xn-sidebar[data-open="true"] { visibility: visible; transform: none; }
+  .xn-nav-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 1250;
+    border: 0;
+    padding: 0;
+    background: rgba(23, 23, 26, 0.5);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .xn-sidebar { transition: none; }
 }

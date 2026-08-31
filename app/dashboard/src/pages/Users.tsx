@@ -51,7 +51,7 @@ const SortHeader: FC<{
   const active = sort === field || sort === `-${field}`;
   const descending = sort === `-${field}`;
   return (
-    <th style={{ width, textAlign: align }}>
+    <th style={{ width, textAlign: align }} aria-sort={active ? (descending ? "descending" : "ascending") : "none"}>
       <button
         onClick={() => onSort(active && descending ? field : `-${field}`)}
         style={{
@@ -66,7 +66,7 @@ const SortHeader: FC<{
         }}
       >
         {label}
-        {active ? (descending ? " ↓" : " ↑") : ""}
+        <span aria-hidden="true">{active ? (descending ? " ↓" : " ↑") : ""}</span>
       </button>
     </th>
   );
@@ -240,6 +240,7 @@ export const Users: FC = () => {
                           <button
                             className="xn-btn xn-btn-ghost"
                             title={t("usersTable.copyLink") as string}
+                            aria-label={t("usersTable.copyLink") as string}
                             onClick={() => setSubLink(user.subscription_url)}
                           >
                             <LinkIcon size={15} strokeWidth={1.5} />
@@ -247,6 +248,7 @@ export const Users: FC = () => {
                           <button
                             className="xn-btn xn-btn-ghost"
                             title={t("usersTable.copyConfigs") as string}
+                            aria-label={t("usersTable.copyConfigs") as string}
                             onClick={() => setQRCode(user.links)}
                           >
                             <QrCode size={15} strokeWidth={1.5} />
@@ -254,6 +256,7 @@ export const Users: FC = () => {
                           <button
                             className="xn-btn xn-btn-ghost"
                             title={t("userDialog.editUser") as string}
+                            aria-label={t("userDialog.editUser") as string}
                             onClick={() => onEditingUser(user)}
                           >
                             <SquarePen size={15} strokeWidth={1.5} />
@@ -261,6 +264,7 @@ export const Users: FC = () => {
                           <button
                             className="xn-btn xn-btn-ghost"
                             title={t("xenith.devices.title", { username: user.username }) as string}
+                            aria-label={t("xenith.devices.title", { username: user.username }) as string}
                             onClick={() => useDashboard.setState({ devicesUser: user })}
                           >
                             <Smartphone size={15} strokeWidth={1.5} />
@@ -268,6 +272,7 @@ export const Users: FC = () => {
                           <button
                             className="xn-btn xn-btn-ghost"
                             title={t("resetUserUsage.title") as string}
+                            aria-label={t("resetUserUsage.title") as string}
                             onClick={() => useDashboard.setState({ resetUsageUser: user })}
                           >
                             <RotateCcw size={15} strokeWidth={1.5} />
@@ -275,6 +280,7 @@ export const Users: FC = () => {
                           <button
                             className="xn-btn xn-btn-ghost"
                             title={t("deleteUser.title") as string}
+                            aria-label={t("deleteUser.title") as string}
                             onClick={() => onDeletingUser(user)}
                           >
                             <Trash2 size={15} strokeWidth={1.5} />
@@ -299,6 +305,7 @@ export const Users: FC = () => {
                 className="xn-seg-opt"
                 style={{ fontSize: 12 }}
                 aria-pressed={limit === size}
+                aria-label={t("xenith.users.perPage", { size })}
                 onClick={() => onFilterChange({ limit: size, offset: 0 })}
               >
                 {size}

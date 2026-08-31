@@ -36,7 +36,9 @@ const sparkline = (values: number[]): string | undefined => {
 };
 
 const KpiRow: FC<{ items: Kpi[] }> = ({ items }) => (
-  <section className="xn-grid-cells" style={{ gridTemplateColumns: `repeat(${items.length}, 1fr)` }}>
+  // The cells reflow rather than being squeezed: four across on a desk, two on
+  // a tablet, one on a phone.
+  <section className="xn-grid-cells" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))" }}>
     {items.map((kpi) => (
       <div
         key={kpi.label}

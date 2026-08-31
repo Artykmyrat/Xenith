@@ -5,6 +5,7 @@ import {
   Globe,
   LayoutGrid,
   LogIn,
+  Menu,
   Plus,
   RefreshCw,
   ScrollText,
@@ -13,7 +14,7 @@ import {
   SlidersHorizontal,
   Users,
 } from "lucide-react";
-import { FC, FormEvent, useState } from "react";
+import { FC, FormEvent, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useQueryClient } from "react-query";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
@@ -46,14 +47,19 @@ const PAGE_TITLES: Record<string, { kicker: string; title: string }> = {
   "/backup": { kicker: "xenith.kicker.backup", title: "xenith.page.backup" },
 };
 
-const NavGroup: FC<{ title: string; items: NavItem[]; first?: boolean }> = ({ title, items, first }) => (
+const NavGroup: FC<{ title: string; items: NavItem[]; first?: boolean; onNavigate?: () => void }> = ({
+  title,
+  items,
+  first,
+  onNavigate,
+}) => (
   <>
     <div className="xn-nav-group" style={{ paddingTop: first ? 0 : 20 }}>
       {title}
     </div>
     <nav style={{ display: "flex", flexDirection: "column" }}>
       {items.map(({ to, label, icon: Icon, count }) => (
-        <NavLink key={to} to={to} end={to === "/"} className="xn-nav-item">
+        <NavLink key={to} to={to} end={to === "/"} className="xn-nav-item" onClick={onNavigate}>
           <Icon size={16} strokeWidth={1.5} />
           <span style={{ fontSize: 13.5, letterSpacing: "0.02em" }}>{label}</span>
           {count !== undefined && (
@@ -79,8 +85,31 @@ export const AppShell: FC = () => {
   const [restarting, setRestarting] = useState(false);
   const [confirmRestart, setConfirmRestart] = useState(false);
   const [search, setSearch] = useState("");
+  // Below the sidebar's breakpoint the navigation is a drawer instead.
+  const [navOpen, setNavOpen] = useState(false);
+  const navToggle = useRef<HTMLButtonElement>(null);
+  const sidebar = useRef<HTMLElement>(null);
 
   const page = PAGE_TITLES[location.pathname] || PAGE_TITLES["/"];
+
+  // Opening the drawer moves the reader into it, and closing it puts them back
+  // on the button they opened it with; Escape closes it the way a layer should.
+  useEffect(() => {
+    if (!navOpen) return;
+    sidebar.current?.querySelector<HTMLElement>(".xn-nav-item")?.focus();
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setNavOpen(false);
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [navOpen]);
+
+  const closeNav = () => {
+    // Nothing to put the focus back on where the drawer was never a drawer.
+    if (!navOpen) return;
+    setNavOpen(false);
+    navToggle.current?.focus();
+  };
 
   const monitoring: NavItem[] = [
     { to: "/", label: t("xenith.nav.overview"), icon: LayoutGrid },
@@ -138,13 +167,13 @@ export const AppShell: FC = () => {
 
   return (
     <div className="xn-root xn-shell">
-      <aside className="xn-sidebar">
+      <aside id="xn-sidebar" className="xn-sidebar" ref={sidebar} data-open={navOpen}>
         <div style={{ padding: "0 20px 22px" }}>
           <LogoLockup />
         </div>
 
-        <NavGroup title={t("xenith.group.monitoring")} items={monitoring} first />
-        <NavGroup title={t("xenith.group.configuration")} items={configuration} />
+        <NavGroup title={t("xenith.group.monitoring")} items={monitoring} first onNavigate={closeNav} />
+        <NavGroup title={t("xenith.group.configuration")} items={configuration} onNavigate={closeNav} />
 
         <div className="xn-sidebar-foot">
           <div
@@ -184,8 +213,22 @@ export const AppShell: FC = () => {
         </div>
       </aside>
 
+      {navOpen && <button className="xn-nav-backdrop" aria-label={t("close")} onClick={closeNav} />}
+
       <main className="xn-main">
         <header className="xn-header">
+          <button
+            ref={navToggle}
+            type="button"
+            className="xn-btn xn-btn-secondary xn-nav-toggle"
+            aria-label={t("xenith.nav.menu")}
+            aria-expanded={navOpen}
+            aria-controls="xn-sidebar"
+            onClick={() => (navOpen ? closeNav() : setNavOpen(true))}
+          >
+            <Menu size={16} strokeWidth={1.5} />
+          </button>
+
           <div style={{ display: "flex", flexDirection: "column", gap: 2, marginRight: "auto", minWidth: 0 }}>
             <span className="xn-kicker">{t(page.kicker)}</span>
             <h1 style={{ fontSize: 27, letterSpacing: 0, lineHeight: 1 }}>{t(page.title)}</h1>
@@ -208,7 +251,8 @@ export const AppShell: FC = () => {
             </svg>
             <input
               className="xn-input"
-              style={{ width: 268, paddingLeft: 32 }}
+              style={{ width: "100%", paddingLeft: 32 }}
+              aria-label={t("xenith.searchPlaceholder")}
               placeholder={t("xenith.searchPlaceholder")}
               value={search}
               onChange={(e) => setSearch(e.target.value)}

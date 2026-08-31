@@ -237,7 +237,7 @@ export const Nginx: FC = () => {
           }
         />
 
-        <div className="xn-grid-cells" style={{ gridTemplateColumns: "repeat(4, 1fr)" }}>
+        <div className="xn-grid-cells" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))" }}>
           {[
             {
               label: t("xenith.nginx.state"),

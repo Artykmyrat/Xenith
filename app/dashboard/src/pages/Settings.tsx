@@ -42,7 +42,7 @@ export const Settings: FC = () => {
             )
           }
         />
-        <div className="xn-grid-cells" style={{ gridTemplateColumns: "repeat(3, 1fr)" }}>
+        <div className="xn-grid-cells" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))" }}>
           {facts.map((fact) => (
             <div
               key={fact.label}

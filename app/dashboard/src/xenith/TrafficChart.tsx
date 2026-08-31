@@ -187,7 +187,7 @@ export const TrafficChart: FC<TrafficChartProps> = ({ height = VIEW_H }) => {
 
       <div
         className="xn-grid-cells"
-        style={{ gridTemplateColumns: "repeat(3, 1fr)", border: 0, borderTop: "1px solid var(--xn-divider)", paddingTop: 1 }}
+        style={{ gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", border: 0, borderTop: "1px solid var(--xn-divider)", paddingTop: 1 }}
       >
         {[
           { label: t("xenith.chart.peak"), value: units.formatWithUnit(peak) },
