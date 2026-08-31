@@ -47,6 +47,9 @@ const PAGE_TITLES: Record<string, { kicker: string; title: string }> = {
   "/backup": { kicker: "xenith.kicker.backup", title: "xenith.page.backup" },
 };
 
+/** How long the drawer takes to slide in, matching the stylesheet. */
+const NAV_SLIDE_MS = 200;
+
 const NavGroup: FC<{ title: string; items: NavItem[]; first?: boolean; onNavigate?: () => void }> = ({
   title,
   items,
@@ -96,12 +99,20 @@ export const AppShell: FC = () => {
   // on the button they opened it with; Escape closes it the way a layer should.
   useEffect(() => {
     if (!navOpen) return;
-    sidebar.current?.querySelector<HTMLElement>(".xn-nav-item")?.focus();
+    // The drawer is hidden by `visibility` until it has slid in, and focus does
+    // not enter a subtree the browser still treats as hidden — so the move in
+    // waits out the slide rather than racing it.
+    const focusDrawer = window.setTimeout(() => {
+      sidebar.current?.querySelector<HTMLElement>(".xn-nav-item")?.focus();
+    }, NAV_SLIDE_MS);
     const onKey = (event: KeyboardEvent) => {
       if (event.key === "Escape") setNavOpen(false);
     };
     document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
+    return () => {
+      window.clearTimeout(focusDrawer);
+      document.removeEventListener("keydown", onKey);
+    };
   }, [navOpen]);
 
   const closeNav = () => {

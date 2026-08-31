@@ -183,18 +183,26 @@ textarea.xn-input { min-height: 90px; resize: vertical; }
    it on Escape and makes the page behind it inert. Only the backdrop belongs to
    the element itself, so a click landing on it is a click outside the panel. */
 .xn-dialog-shell {
-  padding: 0;
-  border: 0;
+  /* The element covers the viewport and centres the panel itself. Leaving that
+     to the built-in margin:auto puts the panel in a corner as soon as it sizes
+     itself, which is what every dialog here does. */
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
   max-width: none;
   max-height: none;
+  padding: 13.6px;
+  border: 0;
   background: transparent;
   color: inherit;
   overflow: visible;
 }
+.xn-dialog-shell[open] { display: grid; place-items: center; }
 .xn-dialog-shell::backdrop { background: rgba(23, 23, 26, 0.5); }
 .xn-dialog {
-  width: min(440px, calc(100vw - 32px));
-  max-height: calc(100vh - 48px);
+  width: min(440px, 100%);
+  max-height: 100%;
   overflow: auto;
   scrollbar-width: thin;
   display: flex;
