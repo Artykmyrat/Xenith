@@ -8,43 +8,61 @@ configuration in `/opt/xenith/.env`.
 
 - A fresh **Debian 12** or **Ubuntu 22.04/24.04** server, root access.
 - 1 vCPU / 1 GB RAM is enough for a few hundred users.
+- About **6 GB** free on `/var` to build the image, or 3 GB to pull it.
 - A **domain** with an `A` record pointing at the server. Without one the panel
   is reachable only through an SSH tunnel and subscription links will not work.
 - Ports **80** (certificate validation) and the panel port (**8000** by default)
   reachable from outside, plus whatever ports your inbounds use.
 
-Check the DNS record before installing — certificate issuance fails otherwise:
+The installer checks the DNS record itself and tells you before certbot gets a
+chance to fail on it. To look first:
 
 ```bash
 dig +short panel.example.com
 ```
 
-## Option 1 — the installer
+---
+
+# Option 1 — the installer
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/bugbusta/Xenith/main/scripts/install.sh -o install.sh
-sudo bash install.sh --domain panel.example.com --email ops@example.com
-```
-
-Run without any of the settings and it asks for them instead — domain, email,
-port, whether to build the image or pull it, whether the panel manages nginx —
-checking each answer as you give it, so a domain that does not point at this
-server is caught before certbot spends four minutes finding out. At the end it
-prints the same run as a command line, for the next server:
-
-```bash
 sudo bash install.sh
 ```
 
-The questions are skipped when the command line already carries settings, when
-there is an existing `.env` to upgrade, and when there is no terminal to ask on.
+Run with no settings, it asks for them — domain, address for expiry notices,
+port, whether to build the image or pull a published one, whether the panel
+manages the host's nginx. Each answer is checked as you give it: a hostname that
+is not one is rejected on the spot, a domain that does not resolve to this
+server is caught before certbot spends four minutes finding out, and a port
+something else already holds is caught while you are still choosing one.
 
-It installs Docker, builds the image from this repository, obtains a Let's
-Encrypt certificate over HTTP-01, generates `.env` with a random sudo password,
-and starts the panel. At the end it prints the dashboard URL and the
-credentials — save them, the password is only shown once.
+At the end it prints the same run as a command line, so the second server does
+not have to be a conversation:
 
-Useful flags:
+```
+==> Next time, without the questions:
+    sudo bash install.sh --domain panel.example.com --email ops@example.com --port 443 --yes
+```
+
+Give it the settings up front and it skips the questions:
+
+```bash
+sudo bash install.sh --domain panel.example.com --email ops@example.com
+```
+
+The questions are also skipped when there is an existing `.env` to upgrade, and
+when there is no terminal to ask on.
+
+## What it does
+
+Installs Docker, builds the image from this repository (or pulls the published
+one), obtains a Let's Encrypt certificate over HTTP-01, arranges for that
+certificate to be renewed, generates `.env` with a random sudo password, and
+starts the panel. At the end it prints the dashboard URL and the credentials —
+save them, the password is only shown once.
+
+## Flags
 
 | Flag | Meaning |
 |---|---|
@@ -53,25 +71,59 @@ Useful flags:
 | `--port <port>` | Panel port, default `8000` (use `443` to drop the port from URLs) |
 | `--pull` | Use the published image instead of building from source |
 | `--ref <branch\|tag>` | Build a specific ref |
-| `--no-tls` | Skip certificate issuance |
+| `--no-tls` | Skip certificate issuance even with `--domain` |
+| `--with-nginx` | Let the panel manage the host's nginx (see [nginx](#nginx)) |
 | `--no-renew-timer` | Do not install the timer that renews the certificate |
-| `--yes` | No confirmation prompt |
+| `--yes` | No questions and no confirmation |
 
-Re-running the script upgrades the panel: it rebuilds the image and restarts the
-container, keeping `.env` and all data. Settings it is not given again on the
-command line — the port, whether nginx is managed — are read back out of the
-existing `.env`, so an upgrade run does not move the panel somewhere else.
+## What it puts on the host
 
-Piping the script into `bash` instead of saving it first works only with
-`--yes`: stdin is then the script itself, and there is nothing left for the
-confirmation prompt to read.
+| Path | What it is |
+|---|---|
+| `/opt/xenith/.env` | Configuration, mode `600` — the panel's secrets are in here |
+| `/opt/xenith/docker-compose.yml` | The service definition |
+| `/opt/xenith/docker-compose.sysctl.yml` | Override used only while `SYSCTL_ENABLED` is on |
+| `/opt/xenith/src` | The cloned sources, when building rather than pulling |
+| `/var/lib/marzban` | Database, certificates, templates, backups |
+| `/etc/letsencrypt` | Certificates, shared with the container |
+| `/usr/local/bin/xenith` | The host command |
+| `/usr/local/bin/xenith-renew-cert` | What the renewal timer runs |
+| `/etc/systemd/system/xenith-cert-renew.{service,timer}` | The renewal timer |
+| `/etc/cron.d/xenith-cert-renew` | The same, on a host without systemd |
 
-## Option 2 — by hand
+## Upgrading
+
+Re-run the script. It rebuilds or re-pulls the image and restarts the container,
+keeping `.env` and all data.
+
+Settings it is not given again on the command line — the port, whether nginx is
+managed — are read back out of the existing `.env`, so an upgrade run cannot
+quietly move the panel somewhere else. Pass a flag to change one of them and it
+is written back to `.env`.
+
+A run that finally gets a certificate for an install that started without one
+adds `UVICORN_SSL_*` to the existing `.env`, which is what makes "fix DNS and
+re-run" actually work.
+
+## Piping it into bash
+
+Works, but only with `--yes`:
+
+```bash
+curl -fsSL .../install.sh | sudo bash -s -- --domain panel.example.com --email ops@example.com --yes
+```
+
+Standard input is then the script itself, so there is nothing left for a prompt
+to read. Without `--yes` the script says so and stops rather than guessing.
+
+---
+
+# Option 2 — by hand
 
 **1. Docker**
 
 ```bash
-apt-get update && apt-get install -y ca-certificates curl git openssl
+apt-get update && apt-get install -y ca-certificates curl git openssl iproute2
 curl -fsSL https://get.docker.com | sh
 ```
 
@@ -137,13 +189,19 @@ services:
     restart: always
     env_file: .env
     network_mode: host
+    ulimits:
+      nofile:
+        soft: 1048576
+        hard: 1048576
     volumes:
       - /var/lib/marzban:/var/lib/marzban
       - /etc/letsencrypt:/etc/letsencrypt
 ```
 
 `/etc/letsencrypt` has to be a volume, otherwise certificates issued from the
-Certificates screen disappear when the container is recreated.
+Certificates screen disappear when the container is recreated. The `ulimits:`
+block is there because a proxy holds two descriptors per connection and the
+Docker default of 1024 runs out long before anything else does.
 
 **7. Start**
 
@@ -155,11 +213,23 @@ docker compose logs -f
 Open `https://panel.example.com:8000/dashboard/` and sign in with
 `SUDO_USERNAME` / `SUDO_PASSWORD`.
 
-## Behind a reverse proxy
+**8. The host command and the renewal timer** are things the installer would
+have set up. Put the wrapper in place:
+
+```bash
+install -m 755 /opt/xenith/src/scripts/xenith /usr/local/bin/xenith
+```
+
+and arrange renewal yourself — see [Certificate renewal](#certificate-renewal).
+Certificates last 90 days and nothing inside the container renews them.
+
+---
+
+# Behind a reverse proxy
 
 If nginx or Caddy terminates TLS instead, leave `UVICORN_SSL_*` unset (the panel
-then listens on localhost only) and point the proxy at `127.0.0.1:8000`. Two
-settings matter on the panel side:
+then listens on localhost only) and point the proxy at `127.0.0.1:8000`. One
+setting matters on the panel side:
 
 ```ini
 TRUSTED_PROXIES = '127.0.0.1,::1'
@@ -175,7 +245,7 @@ rate limited by guessing at its password. With it, only that address is believed
 Proxy `/dashboard/`, `/api/`, `/sub/` (or whatever `XRAY_SUBSCRIPTION_PATH` is)
 and `/statics/`, and pass WebSocket upgrade headers so the live core log works.
 
-## After installing
+# After installing
 
 1. **Inbounds** — Settings → *Edit core config* holds the Xray configuration.
    Add your inbounds there and restart the core; they show up under Inbounds.
@@ -198,10 +268,10 @@ and `/statics/`, and pass WebSocket upgrade headers so the live core log works.
 Certificates issued for the panel itself are picked up on restart:
 
 ```bash
-docker compose -f /opt/xenith/docker-compose.yml restart
+xenith restart
 ```
 
-## Day to day
+# Day to day
 
 The installer puts a `xenith` command on the host that wraps the container:
 
@@ -221,31 +291,37 @@ xenith shell                   # shell inside the container
 ```
 
 `xenith-cli` itself lives inside the container, so run it through `xenith cli`.
-If you installed by hand, drop the wrapper in place yourself:
-
-```bash
-install -m 755 /opt/xenith/src/scripts/xenith /usr/local/bin/xenith
-```
-
-Everything it does is also available directly:
+Everything the wrapper does is also available directly:
 
 ```bash
 docker compose -f /opt/xenith/docker-compose.yml logs -f
 docker compose -f /opt/xenith/docker-compose.yml exec xenith xenith-cli admin list
 ```
 
-Backup — the database, the config and the certificates. The **Backup** screen
-does this from the browser (see below); the same thing by hand is:
+## Updating
+
+`xenith update` rebuilds from the sources in `/opt/xenith/src` for an install
+that builds, and pulls for one that runs a published image. It reports when the
+image did not actually change, so a pull that found nothing new does not look
+like it worked.
+
+To move an install from building to the published image:
 
 ```bash
-tar czf xenith-backup-$(date +%F).tar.gz /var/lib/marzban /opt/xenith/.env /etc/letsencrypt
+xenith image ghcr.io/bugbusta/xenith:latest
 ```
 
-Renewals: certbot's own timer does not exist inside the container, so the
-installer puts one on the host. It runs `/usr/local/bin/xenith-renew-cert`
-twice a day, which renews anything inside its last thirty days and restarts the
-panel only when a certificate was actually replaced — uvicorn reads the
-certificate once, at startup, so a renewal it does not see changes nothing.
+Re-running `install.sh` does the same work as `xenith update` and additionally
+re-checks the certificate and rewrites the compose file.
+
+## Certificate renewal
+
+certbot's own timer does not exist inside the container, so the installer puts
+one on the host. It runs `/usr/local/bin/xenith-renew-cert` twice a day, which
+renews anything inside its last thirty days and restarts the panel **only** when
+a certificate was actually replaced — uvicorn reads the certificate once, at
+startup, so a renewal it does not see changes nothing, and a restart for a
+renewal that did not happen would drop every connection for no reason.
 
 ```bash
 systemctl list-timers xenith-cert-renew.timer   # when it next runs
@@ -254,40 +330,59 @@ systemctl list-timers xenith-cert-renew.timer   # when it next runs
 
 On a host without systemd the same command runs from
 `/etc/cron.d/xenith-cert-renew`. If you installed by hand, or with
-`--no-renew-timer`, renew from the Certificates screen or add that cron entry
+`--no-renew-timer`, renew from the Certificates screen or add that entry
 yourself — a certificate lasts 90 days.
 
-## When something is wrong
+Standalone renewal needs port 80 free for a moment. On a server where the panel
+manages nginx and nginx holds 80, renew through the Certificates screen with
+webroot validation instead.
+
+## Backups
+
+The **Backup** screen makes an archive from the browser (see
+[Backups](#backups-1)); the same thing by hand is:
+
+```bash
+tar czf xenith-backup-$(date +%F).tar.gz /var/lib/marzban /opt/xenith/.env /etc/letsencrypt
+```
+
+# When something is wrong
 
 | Symptom | Cause |
 |---|---|
 | Panel unreachable from outside | No certificate configured, so it binds to localhost. Issue one, or tunnel: `ssh -L 8000:localhost:8000 root@server` |
+| Installer stops with `No terminal to ask on` | The script was piped into bash without `--yes`. Save it and run it, or add `--yes` |
+| Installer stops with `Port 8000 is already in use` | Something else holds it. Stop that, or install on another port with `--port` |
+| Installer warns the domain is not an address of this server | The `A` record points elsewhere. Fix DNS and re-run, or continue and issue the certificate later |
 | `Address already in use` on port 80 during issuance | Another web server holds it. Stop it, or use webroot validation |
 | Certificate issuance fails with NXDOMAIN | The domain does not resolve to this server yet |
+| Certificate expired despite the timer | Check `systemctl status xenith-cert-renew.service`; standalone renewal needs port 80 free |
 | `429 Too Many Requests` on login | Brute-force protection, counted per address and account. Wait out `LOGIN_RATE_LIMIT_WINDOW`, or raise the limit in `.env`. If it keeps happening on a panel behind a proxy, set `TRUSTED_PROXIES` — the panel logs a warning about this when it blocks a login coming from its own network |
 | Every login shows the same IP | Set `TRUSTED_PROXIES` to your reverse proxy's address |
-| Core state shows `Stopped` | Xray failed to start — check `docker compose logs` and the core config |
+| Core state shows `Stopped` | Xray failed to start — check `xenith logs` and the core config |
+| An edit to `.env` changed nothing | `xenith restart` — a container keeps the environment it was created with |
 
-## Removing it
+# Removing it
 
 ```bash
-cd /opt/xenith && docker compose down
+xenith down
+rm -f /usr/local/bin/xenith /usr/local/bin/xenith-renew-cert
+systemctl disable --now xenith-cert-renew.timer 2>/dev/null || true
+rm -f /etc/systemd/system/xenith-cert-renew.{service,timer} /etc/cron.d/xenith-cert-renew
+systemctl daemon-reload 2>/dev/null || true
 rm -rf /opt/xenith
-# data and certificates, delete only if you mean it:
-# rm -rf /var/lib/marzban /etc/letsencrypt
 ```
 
-## Automatic updates
-
-Point the host at the published image once:
+That leaves the data and the certificates, which is usually what you want.
+Delete them only if you mean it:
 
 ```bash
-xenith image ghcr.io/bugbusta/xenith:latest
+rm -rf /var/lib/marzban /etc/letsencrypt
 ```
 
-A later release is picked up on the host with `xenith update`, which pulls the
-new image tag and restarts the panel.
+---
 
+# Reference
 
 ## Open file limits
 
@@ -303,7 +398,7 @@ gets, and none of them reach each other:
 | `/etc/systemd/system.conf.d/` | host systemd units | `systemctl daemon-reexec` |
 | `/etc/security/limits.d/` | host login sessions | next login |
 
-The compose file this repository ships already carries the `ulimits:` block, so
+The compose file the installer writes already carries the `ulimits:` block, so
 a fresh install needs nothing further for the panel itself.
 
 **System settings → Resource limits** shows what the panel is running under and
@@ -315,7 +410,6 @@ panel down with it — so the screen lists what each file still needs.
 The ceiling on all of this is `fs.nr_open` (1048576 by default), editable under
 **File descriptors** on the same screen.
 
-
 ## Kernel tuning
 
 **System settings** reads the kernel parameters the panel manages and, once it
@@ -325,7 +419,7 @@ reboot. Reading works everywhere; writing does not, because Docker mounts
 
 Turning it on is one line in `/opt/xenith/.env`:
 
-```
+```ini
 SYSCTL_ENABLED = True
 ```
 
@@ -345,7 +439,6 @@ and it also drops the isolation between the container and the host — on a
 single-purpose VPS where the panel already runs as root that is a small step, on
 a shared machine it is not. That is why it is not the default, and why it is
 attached to the setting rather than to the main compose file.
-
 
 ## Hysteria2
 
@@ -408,20 +501,19 @@ Two limitations worth knowing before you rely on it:
   because the daemon asks the panel about a password when a connection opens
   and not again after that.
 
-
 ## nginx
 
 The **Nginx** screen manages the host's nginx: status and `nginx -t`, the files
 in `sites-available`, the pages under the web root, and the tail of both logs.
 
-It is off until the container can reach nginx, which takes three things:
+It is off until the container can reach nginx, which the installer arranges:
 
 ```bash
 sudo bash install.sh --with-nginx --domain panel.example.com
 ```
 
-or, on an existing install, `NGINX_ENABLED=true` in `/opt/xenith/.env` plus this
-in `/opt/xenith/docker-compose.yml`:
+or, on an existing install, `NGINX_ENABLED = True` in `/opt/xenith/.env` plus
+this in `/opt/xenith/docker-compose.yml`:
 
 ```yaml
     pid: host
