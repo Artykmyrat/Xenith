@@ -46,6 +46,15 @@ XRAY_EXCLUDE_INBOUND_TAGS = config("XRAY_EXCLUDE_INBOUND_TAGS", default='').spli
 # pin one — a site on this machine's own 443, say, which costs no round trip
 # at all.
 XRAY_REALITY_DEST = config("XRAY_REALITY_DEST", default="").strip()
+# What the core's Go runtime is told when the panel starts it. GOGC is the
+# percentage the heap may grow between collections: 100 is the Go default and
+# is tuned for programs that hold their data, while a proxy allocates per
+# connection and frees almost all of it, so collecting that often costs CPU
+# and adds a pause a connection waits through. The memory share becomes
+# GOMEMLIMIT, which is what stops a larger GOGC from running the machine out
+# of memory. Either can be set to 0 to leave the runtime alone.
+XRAY_GOGC = config("XRAY_GOGC", cast=int, default=200)
+XRAY_MEMORY_LIMIT_PERCENT = config("XRAY_MEMORY_LIMIT_PERCENT", cast=int, default=60)
 XRAY_SUBSCRIPTION_URL_PREFIX = config("XRAY_SUBSCRIPTION_URL_PREFIX", default="").strip("/")
 XRAY_SUBSCRIPTION_PATH = config("XRAY_SUBSCRIPTION_PATH", default="sub").strip("/")
 

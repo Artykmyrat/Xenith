@@ -221,21 +221,28 @@ def _stream(transport: str, security: str) -> Dict:
             "xhttpSettings": {
                 "path": f"/{secrets.token_hex(4)}",
                 # One request carries both directions, so a stream is up after
-                # the first one. The alternatives spend a further round trip
-                # opening a second request to download through. The cost is
-                # that a CDN in front of this would break it — the template
-                # points clients straight at this server's own port, so there
-                # is none.
+                # the first one; the alternatives spend a further round trip
+                # opening a second request to download through. This is what
+                # `auto` already picks for a REALITY client, written down so
+                # that a TLS one gets it too. The cost is that a CDN in front
+                # of this would break — the template points clients straight
+                # at this server's own port, so there is none.
                 "mode": "stream-one",
-                # A megabyte per upload request, so a client sending anything
-                # of size is not cut into requests that each wait a round trip.
-                "scMaxEachPostBytes": 1000000,
-                # The floor between two upload requests. The default of 30 ms
-                # is a third of a round trip on a decent link and is spent
-                # doing nothing; 10 ms still keeps the request rate sane.
-                "scMinPostsIntervalMs": 10,
-                "xPaddingBytes": "100-1000",
-                "xmux": XHTTP_XMUX,
+                # Only host, path and mode belong at this level. The core
+                # reads the rest out of `extra`, and so does a client from the
+                # link the panel writes.
+                "extra": {
+                    # A megabyte per upload request, so a client sending
+                    # anything of size is not cut into requests that each wait
+                    # a round trip.
+                    "scMaxEachPostBytes": 1000000,
+                    # The floor between two upload requests. The default of
+                    # 30 ms is a third of a round trip on a decent link and is
+                    # spent doing nothing; 10 ms keeps the request rate sane.
+                    "scMinPostsIntervalMs": 10,
+                    "xPaddingBytes": "100-1000",
+                    "xmux": XHTTP_XMUX,
+                },
             },
         }
 

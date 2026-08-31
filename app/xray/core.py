@@ -7,7 +7,55 @@ from contextlib import contextmanager
 
 from app import logger
 from app.xray.config import XRayConfig
-from config import DEBUG
+from config import DEBUG, XRAY_GOGC, XRAY_MEMORY_LIMIT_PERCENT
+
+
+def _memory_limit() -> int:
+    """Bytes the core's heap may grow to before collection turns urgent.
+
+    A share of what the machine has, because the core is not the only thing on
+    it: the panel, its database and whatever else the admin runs are the rest.
+    Zero when the share is turned off or the machine will not say how much
+    memory it has, and then the runtime is left with no ceiling at all.
+    """
+    if XRAY_MEMORY_LIMIT_PERCENT <= 0:
+        return 0
+    try:
+        import psutil
+
+        total = psutil.virtual_memory().total
+    except Exception:
+        return 0
+    return int(total * XRAY_MEMORY_LIMIT_PERCENT / 100)
+
+
+def runtime_env(assets_path: str) -> dict:
+    """The environment the core is started with.
+
+    The core is a Go program the panel does not build, so the only handle on
+    what its runtime does is here. Collection every time the heap doubles is
+    the Go default and is tuned for programs that hold their data; a proxy
+    holds almost nothing and allocates constantly per connection, so the
+    default spends CPU on collections that free little — and each one is a
+    pause a connection can be waiting through. GOGC lets the heap grow further
+    between collections, and GOMEMLIMIT is what keeps that from being a way to
+    run the machine out of memory: as the heap approaches the limit the
+    runtime collects as hard as it needs to, whatever GOGC says.
+
+    Nothing else from the panel's own environment is passed on. The core would
+    read some of it — http_proxy is the one that would quietly change where
+    traffic goes — and none of it is meant for it.
+    """
+    env = {"XRAY_LOCATION_ASSET": assets_path}
+
+    if XRAY_GOGC > 0:
+        env["GOGC"] = str(XRAY_GOGC)
+
+    limit = _memory_limit()
+    if limit:
+        env["GOMEMLIMIT"] = f"{limit}B"
+
+    return env
 
 
 class XRayCore:
@@ -25,9 +73,7 @@ class XRayCore:
         self._temp_log_buffers = {}
         self._on_start_funcs = []
         self._on_stop_funcs = []
-        self._env = {
-            "XRAY_LOCATION_ASSET": assets_path
-        }
+        self._env = runtime_env(assets_path)
 
         atexit.register(lambda: self.stop() if self.started else None)
 

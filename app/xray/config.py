@@ -297,6 +297,13 @@ class XRayConfig(dict):
                     settings['host'] = [host]
 
                 elif net in ('splithttp', 'xhttp'):
+                    # Only host, path and mode sit at the top of xhttpSettings;
+                    # the core reads everything else out of `extra`, which is
+                    # the same shape a share link carries. Configurations
+                    # written before that are still read flat, so an inbound an
+                    # admin wrote by hand keeps working either way.
+                    net_settings = {**net_settings, **net_settings.get('extra', {})}
+
                     settings['path'] = net_settings.get('path', '')
                     host = net_settings.get('host', '')
                     settings['host'] = [host]

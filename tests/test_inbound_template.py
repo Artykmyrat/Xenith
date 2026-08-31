@@ -366,3 +366,47 @@ class TestDialTuning:
         inbound = inbound_template.build("xhttp", "reality")
 
         parse(inbound)  # raises if the panel would refuse the template
+
+
+class TestXhttpShape:
+    """Where the core looks for XHTTP settings, and where the panel looks.
+
+    Only host, path and mode belong at the top of `xhttpSettings`; the core
+    reads the rest out of `extra`. The panel reads both, so an inbound written
+    by hand before that is still understood.
+    """
+
+    def test_the_tuning_is_written_where_the_core_reads_it(self):
+        xhttp = inbound_template.build("xhttp", "reality")["streamSettings"]["xhttpSettings"]
+
+        assert set(xhttp) == {"path", "mode", "extra"}
+        assert xhttp["extra"]["xmux"] == inbound_template.XHTTP_XMUX
+
+    def test_the_panel_reads_the_tuning_back_out_of_extra(self):
+        inbound = inbound_template.build("xhttp", "reality")
+
+        settings = parse(inbound).inbounds_by_tag[inbound["tag"]]
+
+        assert settings["xmux"] == inbound_template.XHTTP_XMUX
+        assert settings["scMinPostsIntervalMs"] == 10
+        assert settings["mode"] == "stream-one"
+
+    def test_an_inbound_written_flat_is_still_understood(self):
+        """The shape admins wrote before `extra` existed."""
+        inbound = inbound_template.build("xhttp", "reality")
+        xhttp = inbound["streamSettings"]["xhttpSettings"]
+        xhttp.update(xhttp.pop("extra"))
+
+        settings = parse(inbound).inbounds_by_tag[inbound["tag"]]
+
+        assert settings["xmux"] == inbound_template.XHTTP_XMUX
+        assert settings["scMinPostsIntervalMs"] == 10
+
+    def test_extra_wins_over_a_stale_flat_copy(self):
+        inbound = inbound_template.build("xhttp", "reality")
+        xhttp = inbound["streamSettings"]["xhttpSettings"]
+        xhttp["scMinPostsIntervalMs"] = 30
+
+        settings = parse(inbound).inbounds_by_tag[inbound["tag"]]
+
+        assert settings["scMinPostsIntervalMs"] == 10
