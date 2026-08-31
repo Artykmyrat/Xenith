@@ -58,6 +58,14 @@ curl -fsSL https://raw.githubusercontent.com/bugbusta/Xenith/main/scripts/instal
 sudo bash install.sh --domain panel.example.com --email ops@example.com
 ```
 
+Leave the flags off and it asks for the domain, the address for expiry notices,
+the port and the rest, then prints the equivalent command so the next server
+does not have to be a conversation:
+
+```bash
+sudo bash install.sh
+```
+
 It prints the dashboard URL and the sudo password at the end — the password is
 shown once. It also leaves a `xenith` command on the host:
 

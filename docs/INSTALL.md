@@ -26,6 +26,19 @@ curl -fsSL https://raw.githubusercontent.com/bugbusta/Xenith/main/scripts/instal
 sudo bash install.sh --domain panel.example.com --email ops@example.com
 ```
 
+Run without any of the settings and it asks for them instead — domain, email,
+port, whether to build the image or pull it, whether the panel manages nginx —
+checking each answer as you give it, so a domain that does not point at this
+server is caught before certbot spends four minutes finding out. At the end it
+prints the same run as a command line, for the next server:
+
+```bash
+sudo bash install.sh
+```
+
+The questions are skipped when the command line already carries settings, when
+there is an existing `.env` to upgrade, and when there is no terminal to ask on.
+
 It installs Docker, builds the image from this repository, obtains a Let's
 Encrypt certificate over HTTP-01, generates `.env` with a random sudo password,
 and starts the panel. At the end it prints the dashboard URL and the
@@ -41,10 +54,17 @@ Useful flags:
 | `--pull` | Use the published image instead of building from source |
 | `--ref <branch\|tag>` | Build a specific ref |
 | `--no-tls` | Skip certificate issuance |
+| `--no-renew-timer` | Do not install the timer that renews the certificate |
 | `--yes` | No confirmation prompt |
 
 Re-running the script upgrades the panel: it rebuilds the image and restarts the
-container, keeping `.env` and all data.
+container, keeping `.env` and all data. Settings it is not given again on the
+command line — the port, whether nginx is managed — are read back out of the
+existing `.env`, so an upgrade run does not move the panel somewhere else.
+
+Piping the script into `bash` instead of saving it first works only with
+`--yes`: stdin is then the script itself, and there is nothing left for the
+confirmation prompt to read.
 
 ## Option 2 — by hand
 
@@ -221,12 +241,21 @@ does this from the browser (see below); the same thing by hand is:
 tar czf xenith-backup-$(date +%F).tar.gz /var/lib/marzban /opt/xenith/.env /etc/letsencrypt
 ```
 
-Renewals: certbot's own timer does not exist inside the container, so renew
-either from the Certificates screen or with a cron entry on the host:
+Renewals: certbot's own timer does not exist inside the container, so the
+installer puts one on the host. It runs `/usr/local/bin/xenith-renew-cert`
+twice a day, which renews anything inside its last thirty days and restarts the
+panel only when a certificate was actually replaced — uvicorn reads the
+certificate once, at startup, so a renewal it does not see changes nothing.
 
-```cron
-0 3 * * * /usr/local/bin/xenith certbot renew --quiet && /usr/local/bin/xenith restart
+```bash
+systemctl list-timers xenith-cert-renew.timer   # when it next runs
+/usr/local/bin/xenith-renew-cert                # run it now
 ```
+
+On a host without systemd the same command runs from
+`/etc/cron.d/xenith-cert-renew`. If you installed by hand, or with
+`--no-renew-timer`, renew from the Certificates screen or add that cron entry
+yourself — a certificate lasts 90 days.
 
 ## When something is wrong
 

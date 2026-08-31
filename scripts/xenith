@@ -66,6 +66,13 @@ compose() {
   docker compose "${files[@]}" "$@"
 }
 
+# `compose exec` asks Docker for a TTY, and that fails outright when there is
+# none -- from cron, from a systemd unit, from any pipeline. The certificate
+# renewal timer runs `xenith certbot` exactly that way, so ask for a TTY only
+# when stdin actually is one.
+EXEC_FLAGS=()
+[[ -t 0 ]] || EXEC_FLAGS=(-T)
+
 # The image the service is actually running. Compared before and after an
 # update so a pull that found nothing new says so instead of looking like it
 # worked.
@@ -102,8 +109,8 @@ case "$command" in
   restart) compose up -d --force-recreate ;;
   status)  compose ps ;;
   logs)    compose logs "${@:---tail=200}" ;;
-  cli)     compose exec "$SERVICE" xenith-cli "$@" ;;
-  certbot) compose exec "$SERVICE" certbot "$@" ;;
+  cli)     compose exec "${EXEC_FLAGS[@]}" "$SERVICE" xenith-cli "$@" ;;
+  certbot) compose exec "${EXEC_FLAGS[@]}" "$SERVICE" certbot "$@" ;;
   shell)   compose exec "$SERVICE" bash ;;
   env)     "${EDITOR:-nano}" "$INSTALL_DIR/.env" ;;
   update)
