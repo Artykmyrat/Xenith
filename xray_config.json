@@ -1,8 +1,19 @@
 {
   "log": {
-    "loglevel": "warning"
+    "loglevel": "warning",
+    "dnsLog": false
+  },
+  "dns": {
+    "servers": [
+      "1.1.1.1",
+      "8.8.8.8",
+      "localhost"
+    ],
+    "queryStrategy": "UseIPv4",
+    "tag": "dns_out"
   },
   "routing": {
+    "domainStrategy": "AsIs",
     "rules": [
       {
         "ip": ["geoip:private"],
@@ -20,13 +31,30 @@
       "settings": {
         "clients": [],
         "network": "tcp,udp"
+      },
+      "streamSettings": {
+        "sockopt": {
+          "tcpFastOpen": true,
+          "tcpKeepAliveIdle": 100
+        }
+      },
+      "sniffing": {
+        "enabled": true,
+        "destOverride": ["http", "tls", "quic"],
+        "routeOnly": true
       }
     }
   ],
   "outbounds": [
     {
       "protocol": "freedom",
-      "tag": "DIRECT"
+      "tag": "DIRECT",
+      "streamSettings": {
+        "sockopt": {
+          "tcpFastOpen": true,
+          "tcpKeepAliveIdle": 100
+        }
+      }
     },
     {
       "protocol": "blackhole",

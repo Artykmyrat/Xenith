@@ -96,9 +96,11 @@ class TestRealityTemplate:
 
         settings = parse(inbound).inbounds_by_tag[inbound["tag"]]
 
+        reality = inbound["streamSettings"]["realitySettings"]
         assert settings["tls"] == "reality"
-        assert settings["sni"] == [inbound_template.REALITY_DEST]
-        assert settings["sids"] == inbound["streamSettings"]["realitySettings"]["shortIds"]
+        assert settings["sni"] == reality["serverNames"]
+        assert reality["dest"] == f"{reality['serverNames'][0]}:443"
+        assert settings["sids"] == reality["shortIds"]
 
     def test_the_public_key_the_panel_derives_matches_the_private_one(self):
         inbound = inbound_template.build("tcp", "reality")
@@ -115,8 +117,20 @@ class TestRealityTemplate:
 
         assert settings["network"] == "xhttp"
         assert settings["path"] == inbound["streamSettings"]["xhttpSettings"]["path"]
-        # "auto" leaves the choice of packet-up, stream-up or stream-one to the client.
-        assert settings["mode"] == "auto"
+        # One request in both directions: nothing else is opened before the
+        # stream is up. A CDN in front would refuse it; there is none here.
+        assert settings["mode"] == "stream-one"
+
+    def test_xhttp_carries_connection_reuse_to_the_client(self):
+        """Without xmux every new stream repeats the whole handshake."""
+        inbound = inbound_template.build("xhttp", "reality")
+
+        settings = parse(inbound).inbounds_by_tag[inbound["tag"]]
+
+        assert settings["xmux"] == inbound_template.XHTTP_XMUX
+        assert settings["xmux"]["maxConcurrency"] == "16-32"
+        assert settings["scMaxEachPostBytes"] == 1000000
+        assert settings["scMinPostsIntervalMs"] == 10
 
     def test_the_grpc_service_name_reaches_the_panel(self):
         inbound = inbound_template.build("grpc", "reality")
@@ -259,3 +273,96 @@ class TestEndpoint:
         )
 
         assert response.status_code == 422
+
+
+class TestDest:
+    """Which host REALITY borrows its handshake from.
+
+    The server relays every incoming handshake into `dest` before it knows
+    whether the client is one of ours, so that round trip is spent on each
+    connection a client makes — it is most of what a client measures as the
+    time it took to connect.
+    """
+
+    @pytest.fixture(autouse=True)
+    def unmeasured(self, monkeypatch):
+        """No cached measurement, and no probing unless a test asks for it."""
+        monkeypatch.setattr(inbound_template, "_dest_cache", None)
+        monkeypatch.setattr(inbound_template, "XRAY_REALITY_DEST", "")
+        monkeypatch.setattr(inbound_template, "_connect_seconds", lambda host: None)
+
+    def probe(self, monkeypatch, timings):
+        monkeypatch.setattr(
+            inbound_template, "_connect_seconds", lambda host: timings.get(host)
+        )
+
+    def test_the_nearest_candidate_wins(self, monkeypatch):
+        self.probe(monkeypatch, {"www.apple.com": 0.004, "www.microsoft.com": 0.180})
+
+        assert inbound_template.choose_dest() == "www.apple.com"
+
+    def test_a_candidate_that_does_not_answer_is_passed_over(self, monkeypatch):
+        # The fastest of the two answers, not the first one asked.
+        self.probe(monkeypatch, {"dl.google.com": 0.020, "www.bing.com": 0.300})
+
+        assert inbound_template.choose_dest() == "dl.google.com"
+
+    def test_a_server_that_reaches_nothing_keeps_the_old_default(self):
+        # Every probe returns None here, which is what a firewalled server
+        # looks like. An unreachable dest would be a broken inbound.
+        assert inbound_template.choose_dest() == inbound_template.REALITY_DEST
+
+    def test_the_measurement_is_not_repeated_for_every_template(self, monkeypatch):
+        probed = []
+
+        def count(host):
+            probed.append(host)
+            return 0.01
+
+        monkeypatch.setattr(inbound_template, "_connect_seconds", count)
+
+        inbound_template.choose_dest()
+        seen = len(probed)
+        inbound_template.choose_dest()
+
+        assert len(probed) == seen
+
+    def test_a_configured_dest_is_used_without_measuring(self, monkeypatch):
+        monkeypatch.setattr(inbound_template, "XRAY_REALITY_DEST", "localhost")
+
+        def refuse(host):
+            raise AssertionError("a configured dest should not be measured")
+
+        monkeypatch.setattr(inbound_template, "_connect_seconds", refuse)
+
+        assert inbound_template.choose_dest() == "localhost"
+
+    def test_the_chosen_dest_is_what_the_template_carries(self, monkeypatch):
+        self.probe(monkeypatch, {"www.cloudflare.com": 0.003})
+
+        reality = inbound_template.build("tcp", "reality")["streamSettings"]["realitySettings"]
+
+        assert reality["serverNames"] == ["www.cloudflare.com"]
+        assert reality["dest"] == "www.cloudflare.com:443"
+
+
+class TestDialTuning:
+    """Settings that cost a round trip when they are missing."""
+
+    def test_sniffing_does_not_send_the_core_back_to_dns(self):
+        inbound = inbound_template.build("tcp", "reality")
+
+        # destOverride alone throws away the address the client resolved and
+        # makes the core look the domain up again, once per connection.
+        assert inbound["sniffing"]["routeOnly"] is True
+
+    @pytest.mark.parametrize("transport", ["tcp", "grpc", "ws", "xhttp"])
+    def test_every_transport_asks_for_fast_open(self, certificates, transport):
+        inbound = inbound_template.build(transport, "tls")
+
+        assert inbound["streamSettings"]["sockopt"]["tcpFastOpen"] is True
+
+    def test_the_tuning_survives_the_panel_s_own_parser(self):
+        inbound = inbound_template.build("xhttp", "reality")
+
+        parse(inbound)  # raises if the panel would refuse the template

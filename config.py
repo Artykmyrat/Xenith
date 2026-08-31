@@ -40,6 +40,12 @@ XRAY_FALLBACKS_INBOUND_TAG = config("XRAY_FALLBACKS_INBOUND_TAG", cast=str, defa
 XRAY_EXECUTABLE_PATH = config("XRAY_EXECUTABLE_PATH", default="/usr/local/bin/xray")
 XRAY_ASSETS_PATH = config("XRAY_ASSETS_PATH", default="/usr/local/share/xray")
 XRAY_EXCLUDE_INBOUND_TAGS = config("XRAY_EXCLUDE_INBOUND_TAGS", default='').split()
+# The host a generated REALITY inbound borrows its handshake from. Left empty,
+# the panel measures a handful of candidates and keeps the one this server
+# reaches fastest, which is what a client feels as connect time. Set it to
+# pin one — a site on this machine's own 443, say, which costs no round trip
+# at all.
+XRAY_REALITY_DEST = config("XRAY_REALITY_DEST", default="").strip()
 XRAY_SUBSCRIPTION_URL_PREFIX = config("XRAY_SUBSCRIPTION_URL_PREFIX", default="").strip("/")
 XRAY_SUBSCRIPTION_PATH = config("XRAY_SUBSCRIPTION_PATH", default="sub").strip("/")
 

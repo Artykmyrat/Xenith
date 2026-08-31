@@ -9,14 +9,25 @@ the configuration is not already using.
 Only the transports the buttons offer are built here. REALITY is not among
 xray's options for WebSocket — it needs the raw stream that the others give it
 — so that one combination is refused rather than quietly downgraded.
+
+Templates are also written for how long a client waits before its first byte
+moves. Three things dominate that wait, and all three are decided here rather
+than by the client: which host REALITY borrows its handshake from, whether a
+second connection has to repeat that handshake at all, and whether the core
+looks a domain up in DNS before it dials out. See `choose_dest`, `XHTTP_XMUX`
+and the `sniffing` block below.
 """
 
 import secrets
+import socket
+import threading
+import time
+from concurrent.futures import ThreadPoolExecutor
 from typing import Dict, Iterable, List, Optional, Tuple
 
 from app.utils import certbot
 from app.utils.crypto import generate_x25519_keypair
-from config import UVICORN_PORT
+from config import UVICORN_PORT, XRAY_REALITY_DEST
 
 TRANSPORTS = ("tcp", "grpc", "ws", "xhttp")
 SECURITIES = ("tls", "reality")
@@ -25,10 +36,61 @@ SECURITIES = ("tls", "reality")
 # speaks TLSv1.3 and HTTP/2, which is what the handshake has to borrow.
 REALITY_DEST = "www.microsoft.com"
 
+# A REALITY server opens a connection to `dest` and relays the client's
+# handshake into it before deciding whether the client is one of ours, so the
+# round trip to that host is paid on every new connection — not once. A host
+# that answers in 5 ms and one that answers in 200 ms therefore differ by
+# roughly that much on each connect, which is most of what a client measures
+# as "time to connect".
+#
+# Every candidate speaks TLSv1.3 and HTTP/2 and sits behind a CDN with enough
+# points of presence that at least one is usually near the server. The list is
+# ordered only for readability; which one a server ends up on is measured.
+REALITY_DEST_CANDIDATES: Tuple[str, ...] = (
+    "www.microsoft.com",
+    "www.apple.com",
+    "www.cloudflare.com",
+    "dl.google.com",
+    "www.bing.com",
+    "aws.amazon.com",
+    "cdn.jsdelivr.net",
+    "www.samsung.com",
+)
+
+# A candidate that has not answered by then is not the fastest one anyway.
+DEST_PROBE_TIMEOUT = 1.0
+
+# The measurement is about where the server sits, which does not change
+# between two clicks of the same button.
+DEST_CACHE_SECONDS = 3600
+
+# Connection reuse for XHTTP. Without it every new stream repeats the whole
+# TCP + TLS + REALITY handshake; with it the second and later streams ride an
+# HTTP connection that is already open and cost no round trips at all. The
+# panel copies these to the subscription link, so the client gets them too.
+#
+# The ranges are picked per connection, which keeps two clients from producing
+# the same traffic pattern:
+#   maxConcurrency   streams that may share one connection
+#   maxConnections   0, so concurrency alone decides when to open another
+#   cMaxReuseTimes   sub-connections before the underlying one is retired
+#   hMaxRequestTimes requests one HTTP connection carries before it is dropped
+#   hKeepAlivePeriod seconds between keepalives, so idle NAT does not cut it
+XHTTP_XMUX = {
+    "maxConcurrency": "16-32",
+    "maxConnections": 0,
+    "cMaxReuseTimes": "64-128",
+    "hMaxRequestTimes": "600-900",
+    "hKeepAlivePeriod": 45,
+}
+
 # Above the range a panel is likely to have taken, and clear of the privileged
 # ports, so the first suggestion is usually the one that gets kept.
 FIRST_PORT = 8443
 LAST_PORT = 65535
+
+_dest_cache: Optional[Tuple[float, str]] = None
+_dest_lock = threading.Lock()
 
 
 class TemplateError(Exception):
@@ -58,6 +120,56 @@ def _free_port(taken: Iterable[int]) -> int:
         if port not in taken:
             return port
     raise TemplateError("No free port is left above %d." % FIRST_PORT)
+
+
+def _connect_seconds(host: str) -> Optional[float]:
+    """How long this server takes to open a connection to host:443.
+
+    None when the host did not answer, which is a reason to pass it over
+    rather than an error: the other candidates are still there.
+    """
+    started = time.monotonic()
+    try:
+        socket.create_connection((host, 443), DEST_PROBE_TIMEOUT).close()
+    except OSError:
+        return None
+    return time.monotonic() - started
+
+
+def choose_dest() -> str:
+    """The candidate this server reaches fastest, measured once an hour.
+
+    XRAY_REALITY_DEST overrides the measurement, which is how a dest on the
+    machine itself — a local site on 443 — gets used: nothing beats a round
+    trip that never leaves the host.
+
+    The candidates are probed at the same time, so the whole thing costs one
+    timeout at worst. If none of them answers, the long-standing default is
+    kept: an unreachable dest would be a broken inbound, a slow one is only a
+    slow inbound.
+    """
+    global _dest_cache
+
+    if XRAY_REALITY_DEST:
+        return XRAY_REALITY_DEST
+
+    with _dest_lock:
+        if _dest_cache and time.monotonic() - _dest_cache[0] < DEST_CACHE_SECONDS:
+            return _dest_cache[1]
+
+    with ThreadPoolExecutor(max_workers=len(REALITY_DEST_CANDIDATES)) as pool:
+        costs = pool.map(_connect_seconds, REALITY_DEST_CANDIDATES)
+
+    reached = [
+        (cost, host)
+        for host, cost in zip(REALITY_DEST_CANDIDATES, costs)
+        if cost is not None
+    ]
+    dest = min(reached)[1] if reached else REALITY_DEST
+
+    with _dest_lock:
+        _dest_cache = (time.monotonic(), dest)
+    return dest
 
 
 def _certificate() -> Tuple[str, str, str]:
@@ -106,9 +218,25 @@ def _stream(transport: str, security: str) -> Dict:
         return {
             "network": "xhttp",
             "security": security,
-            # "auto" on the server side means it takes whichever of the three
-            # modes the client picked, rather than dictating one.
-            "xhttpSettings": {"path": f"/{secrets.token_hex(4)}", "mode": "auto"},
+            "xhttpSettings": {
+                "path": f"/{secrets.token_hex(4)}",
+                # One request carries both directions, so a stream is up after
+                # the first one. The alternatives spend a further round trip
+                # opening a second request to download through. The cost is
+                # that a CDN in front of this would break it — the template
+                # points clients straight at this server's own port, so there
+                # is none.
+                "mode": "stream-one",
+                # A megabyte per upload request, so a client sending anything
+                # of size is not cut into requests that each wait a round trip.
+                "scMaxEachPostBytes": 1000000,
+                # The floor between two upload requests. The default of 30 ms
+                # is a third of a round trip on a decent link and is spent
+                # doing nothing; 10 ms still keeps the request rate sane.
+                "scMinPostsIntervalMs": 10,
+                "xPaddingBytes": "100-1000",
+                "xmux": XHTTP_XMUX,
+            },
         }
 
     return {
@@ -118,16 +246,16 @@ def _stream(transport: str, security: str) -> Dict:
     }
 
 
-def _security(security: str) -> Dict:
+def _security(security: str, dest: str) -> Dict:
     """The security half: either someone else's handshake, or our own."""
     if security == "reality":
         private_key, _ = generate_x25519_keypair()
         return {
             "realitySettings": {
                 "show": False,
-                "dest": f"{REALITY_DEST}:443",
+                "dest": f"{dest}:443",
                 "xver": 0,
-                "serverNames": [REALITY_DEST],
+                "serverNames": [dest],
                 "privateKey": private_key,
                 # One is all the panel asks for, and one is all a client uses.
                 "shortIds": [secrets.token_hex(4)],
@@ -161,7 +289,12 @@ def build(
         )
 
     stream = _stream(transport, security)
-    stream.update(_security(security))
+    stream.update(_security(security, choose_dest() if security == "reality" else ""))
+    # Fast Open lets a returning client put its first request into the SYN,
+    # which is the one round trip a TCP handshake would otherwise cost. The
+    # keepalive is there so a connection kept open for reuse survives the
+    # idle timers of the NAT it is usually behind.
+    stream["sockopt"] = {"tcpFastOpen": True, "tcpKeepAliveIdle": 100}
 
     return {
         "tag": _unique_tag(f"VLESS {transport.upper()} {security.upper()}", taken_tags or []),
@@ -170,5 +303,13 @@ def build(
         "protocol": "vless",
         "settings": {"clients": [], "decryption": "none"},
         "streamSettings": stream,
-        "sniffing": {"enabled": True, "destOverride": ["http", "tls", "quic"]},
+        # routeOnly keeps the sniffed domain for the routing rules but leaves
+        # the address being dialled alone. Without it the core throws away the
+        # address the client resolved and looks the domain up again itself,
+        # once per connection, through a resolver that does not cache.
+        "sniffing": {
+            "enabled": True,
+            "destOverride": ["http", "tls", "quic"],
+            "routeOnly": True,
+        },
     }
