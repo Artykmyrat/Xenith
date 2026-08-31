@@ -237,7 +237,12 @@ class SingBoxConfiguration(str):
             "server_port": port,
         }
 
-        if net in ('tcp', 'raw', 'kcp') and headers != 'http' and (tls or tls != 'none'):
+        # Vision rides inside TLS: it is what stops the tunnel encrypting an
+        # already encrypted stream a second time, so on a plain inbound there
+        # is nothing for it to ride and sing-box refuses the outbound. The old
+        # test read `tls or tls != 'none'`, which "none" passed on the first
+        # half.
+        if net in ('tcp', 'raw', 'kcp') and headers != 'http' and tls in ('tls', 'reality'):
             if flow:
                 config["flow"] = flow
 

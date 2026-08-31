@@ -53,6 +53,13 @@ XRAY_REALITY_DEST = config("XRAY_REALITY_DEST", default="").strip()
 # and adds a pause a connection waits through. The memory share becomes
 # GOMEMLIMIT, which is what stops a larger GOGC from running the machine out
 # of memory. Either can be set to 0 to leave the runtime alone.
+# The flow a VLESS account is created with when nothing asks for another.
+# Vision keeps the core from encrypting a stream that is already encrypted --
+# TLS inside TLS, which is most of what a VLESS connection costs in CPU. It
+# only applies where it can: the core and the subscription both drop it from
+# an inbound that is not raw TCP over TLS or REALITY, so it is safe to hand
+# every account. Set it empty for the old behaviour of no flow at all.
+XRAY_DEFAULT_VLESS_FLOW = config("XRAY_DEFAULT_VLESS_FLOW", default="xtls-rprx-vision")
 XRAY_GOGC = config("XRAY_GOGC", cast=int, default=200)
 XRAY_MEMORY_LIMIT_PERCENT = config("XRAY_MEMORY_LIMIT_PERCENT", cast=int, default=60)
 XRAY_SUBSCRIPTION_URL_PREFIX = config("XRAY_SUBSCRIPTION_URL_PREFIX", default="").strip("/")
@@ -130,6 +137,15 @@ HYSTERIA_MASQUERADE_URL = config("HYSTERIA_MASQUERADE_URL", default="https://www
 # The daemon's traffic API, which the panel polls for usage. Loopback only: the
 # secret is the whole of its authentication.
 HYSTERIA_STATS_PORT = config("HYSTERIA_STATS_PORT", cast=int, default=25413)
+# QUIC flow-control windows, in megabytes. A receiver may only be this far
+# ahead of what it has acknowledged, so on a link with a long round trip the
+# window -- not the bandwidth -- is what caps the speed: a 20 MB connection
+# window over 200 ms cannot exceed about 800 Mbps however wide the pipe is.
+# Both are twice what the daemon uses on its own. The cost is memory, and only
+# for data actually in flight, so it is paid by fast clients rather than by
+# every connected one. Set either to 0 to leave the daemon's own default.
+HYSTERIA_QUIC_STREAM_WINDOW_MB = config("HYSTERIA_QUIC_STREAM_WINDOW_MB", cast=int, default=16)
+HYSTERIA_QUIC_CONN_WINDOW_MB = config("HYSTERIA_QUIC_CONN_WINDOW_MB", cast=int, default=40)
 
 # nginx, managed from the Nginx screen. Off by default: it edits files under
 # /etc/nginx and signals a process outside the container, which only works when

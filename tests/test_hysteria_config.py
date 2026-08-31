@@ -146,3 +146,57 @@ class TestWriting:
     def test_a_directory_that_is_not_there_is_reported(self, tmp_path):
         with pytest.raises(HysteriaConfigError, match="does not exist"):
             hysteria.write(str(tmp_path / "nowhere" / "hysteria.yaml"))
+
+
+class TestQuicWindows:
+    """How far a receiver may run ahead of what it has acknowledged.
+
+    On a link with a long round trip this, and not the bandwidth, is what caps
+    the speed — so a server whose clients are a continent away is slow for a
+    reason that has nothing to do with the pipe.
+    """
+
+    def test_the_windows_are_wider_than_the_daemon_would_pick(self):
+        quic = hysteria.render()["quic"]
+
+        # The daemon allows a stream 8 MB and a connection 20 MB by itself.
+        assert quic["initStreamReceiveWindow"] > 8 * 1024 ** 2
+        assert quic["initConnReceiveWindow"] > 20 * 1024 ** 2
+
+    def test_a_window_starts_at_what_it_can_grow_to(self):
+        quic = hysteria.render()["quic"]
+
+        # A server with one client on another continent has no reason to
+        # discover that slowly.
+        assert quic["initStreamReceiveWindow"] == quic["maxStreamReceiveWindow"]
+        assert quic["initConnReceiveWindow"] == quic["maxConnReceiveWindow"]
+
+    def test_a_connection_is_allowed_more_than_one_of_its_streams(self, monkeypatch):
+        quic = hysteria.render()["quic"]
+
+        assert quic["initConnReceiveWindow"] > quic["initStreamReceiveWindow"]
+
+    def test_megabytes_are_what_the_setting_means(self, monkeypatch):
+        monkeypatch.setattr(hysteria, "HYSTERIA_QUIC_STREAM_WINDOW_MB", 3)
+
+        assert hysteria.render()["quic"]["initStreamReceiveWindow"] == 3 * 1024 ** 2
+
+    def test_one_half_can_be_left_to_the_daemon(self, monkeypatch):
+        monkeypatch.setattr(hysteria, "HYSTERIA_QUIC_CONN_WINDOW_MB", 0)
+
+        quic = hysteria.render()["quic"]
+
+        assert "initStreamReceiveWindow" in quic
+        assert "initConnReceiveWindow" not in quic
+
+    def test_nothing_is_written_when_both_are_off(self, monkeypatch):
+        monkeypatch.setattr(hysteria, "HYSTERIA_QUIC_STREAM_WINDOW_MB", 0)
+        monkeypatch.setattr(hysteria, "HYSTERIA_QUIC_CONN_WINDOW_MB", 0)
+
+        assert "quic" not in hysteria.render()
+
+    def test_an_admin_who_writes_their_own_block_gets_it(self, hysteria_settings):
+        mine = {"maxIdleTimeout": "60s", "initConnReceiveWindow": 1024}
+        hysteria_settings(extra={"quic": mine})
+
+        assert hysteria.render()["quic"] == mine

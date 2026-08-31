@@ -20,7 +20,11 @@ import yaml
 
 from app.hysteria import settings as hysteria_settings
 from app.utils import certbot
-from config import HYSTERIA_CONFIG_PATH, UVICORN_PORT, UVICORN_SSL_CERTFILE
+from config import (HYSTERIA_CONFIG_PATH, HYSTERIA_QUIC_CONN_WINDOW_MB,
+                    HYSTERIA_QUIC_STREAM_WINDOW_MB, UVICORN_PORT,
+                    UVICORN_SSL_CERTFILE)
+
+MEGABYTE = 1024 ** 2
 
 # Regenerated per process. The daemon is handed it in its configuration and the
 # panel keeps it in memory, so a restart of either invalidates nothing that
@@ -72,6 +76,38 @@ def _certificate(domain: Optional[str] = None) -> tuple:
     return certificate.certificate_path, certificate.private_key_path
 
 
+def _quic() -> Dict:
+    """The flow-control windows the daemon's QUIC connections are given.
+
+    A receiver may only run this far ahead of what it has acknowledged, so on
+    a link with a long round trip the window is what caps the speed rather
+    than the bandwidth: 20 MB — what the daemon allows a connection by itself
+    — over 200 ms comes to about 800 Mbps, however wide the pipe is. The
+    windows are set to what they can grow to from the start, since a server
+    that has one client on another continent has no reason to discover that
+    slowly.
+
+    The cost is memory, and only for data actually in flight, so it is paid by
+    the clients fast enough to fill a window rather than by every connected
+    one. Either half can be set to 0 to leave the daemon's own default in
+    place, and an admin who writes a `quic` block into `extra` replaces this
+    entirely.
+    """
+    quic: Dict = {}
+
+    if HYSTERIA_QUIC_STREAM_WINDOW_MB > 0:
+        window = HYSTERIA_QUIC_STREAM_WINDOW_MB * MEGABYTE
+        quic["initStreamReceiveWindow"] = window
+        quic["maxStreamReceiveWindow"] = window
+
+    if HYSTERIA_QUIC_CONN_WINDOW_MB > 0:
+        window = HYSTERIA_QUIC_CONN_WINDOW_MB * MEGABYTE
+        quic["initConnReceiveWindow"] = window
+        quic["maxConnReceiveWindow"] = window
+
+    return quic
+
+
 def auth_url() -> str:
     """Where the daemon asks whether a password belongs to a live user.
 
@@ -101,6 +137,9 @@ def render(settings=None) -> Dict:
         # deltas, which is what the panel records.
         "trafficStats": {"listen": f"127.0.0.1:{settings.stats_port}", "secret": STATS_SECRET},
     }
+
+    if quic := _quic():
+        config["quic"] = quic
 
     # A port that answers like a website is a port that looks like one. Left
     # out entirely when there is no URL, rather than pointed at nothing.

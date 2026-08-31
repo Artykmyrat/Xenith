@@ -7,6 +7,7 @@ from uuid import UUID, uuid4
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.utils.system import random_password
+from config import XRAY_DEFAULT_VLESS_FLOW
 from xray_api.types.account import (
     ShadowsocksAccount,
     ShadowsocksMethods,
@@ -15,6 +16,24 @@ from xray_api.types.account import (
     VMessAccount,
     XTLSFlows,
 )
+
+def default_flow() -> XTLSFlows:
+    """The flow a VLESS account is created with.
+
+    Vision is what keeps the core from encrypting a stream that already is --
+    TLS inside TLS -- which is most of what a VLESS connection costs in CPU.
+    It rides only on raw TCP over TLS or REALITY, and both the core config and
+    every subscription format drop it from an inbound that is anything else,
+    so an account carrying it is not an account that breaks on a WebSocket.
+
+    An unreadable setting is not worth refusing to start over: the flow that
+    was there before this had a default is the fallback.
+    """
+    try:
+        return XTLSFlows(XRAY_DEFAULT_VLESS_FLOW)
+    except ValueError:
+        return XTLSFlows.NONE
+
 
 FRAGMENT_PATTERN = re.compile(r'^((\d{1,4}-\d{1,4})|(\d{1,4})),((\d{1,3}-\d{1,3})|(\d{1,3})),(tlshello|\d|\d\-\d)$')
 
@@ -89,7 +108,7 @@ class VMessSettings(ProxySettings):
 
 class VLESSSettings(ProxySettings):
     id: UUID = Field(default_factory=uuid4)
-    flow: XTLSFlows = XTLSFlows.NONE
+    flow: XTLSFlows = Field(default_factory=default_flow)
 
     def revoke(self):
         self.id = uuid4()

@@ -108,7 +108,10 @@ const getDefaultValues = (): FormType => {
     hwid_device_limit: null,
     inbounds,
     proxies: {
-      vless: { id: "", flow: "" },
+      // Vision by default, matching the panel: it saves the core from
+      // encrypting an already encrypted stream, and both the core config and
+      // the subscription drop it from an inbound that cannot carry it.
+      vless: { id: "", flow: "xtls-rprx-vision" },
       vmess: { id: "" },
       trojan: { password: "" },
       shadowsocks: { password: "", method: "chacha20-ietf-poly1305" },
